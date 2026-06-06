@@ -10,30 +10,34 @@ export default function HistoryScreen() {
 
   if (!currentTeacher) return <View style={styles.center}><Text>Access Denied.</Text></View>;
 
-  const filteredTeacherLogs = historyLogs.filter(log => log.teacherId === currentTeacher.id);
-
-  const toggleCardExpansion = (id: string) => {
+  // Toggle function safely handles undefined IDs just in case MongoDB is slow
+  const toggleCardExpansion = (id?: string) => {
+    if (!id) return;
     setExpandedLogId(prevId => (prevId === id ? null : id));
   };
 
   return (
     <View style={styles.container}>
       <FlatList
-        data={filteredTeacherLogs}
-        keyExtractor={(item) => item.id}
+        // The backend already filters these logs for the current teacher!
+        data={historyLogs} 
+        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={
           <View style={styles.emptyBox}>
             <Text style={styles.emptyTitle}>No Historical Submissions Found</Text>
-            <Text style={styles.emptySubtitle}>Submitted logs will be locked and listed here for read-only tracking.</Text>
+            <Text style={styles.emptySubtitle}>Published attendance logs will be fetched securely from MongoDB and listed here.</Text>
           </View>
         }
         renderItem={({ item }) => {
-          const isExpanded = expandedLogId === item.id;
+          // Identify the unique DB key for this specific log
+          const logUniqueId = item._id || item.id;
+          const isExpanded = expandedLogId === logUniqueId;
+
           return (
             <View style={styles.historyCard}>
               {/* Clickable Header Area to expand/collapse card details */}
-              <TouchableOpacity onPress={() => toggleCardExpansion(item.id)} activeOpacity={0.7}>
+              <TouchableOpacity onPress={() => toggleCardExpansion(logUniqueId)} activeOpacity={0.7}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.classBadge}>{item.className}</Text>
                   <Text style={styles.timeLabel}>{item.submissionTime}</Text>
@@ -49,11 +53,14 @@ export default function HistoryScreen() {
               {/* READ-ONLY STUDENT ROSTER DETAIL LIST SNAPSHOT DISPLAY PANEL */}
               {isExpanded && (
                 <View style={styles.rosterExpansionPanel}>
-                  <Text style={styles.panelTitle}> Roster Snapshot (Immutable Record)</Text>
-                  {item.studentsSnapshot.map((student) => {
+                  <Text style={styles.panelTitle}> Roster Snapshot (Database Record)</Text>
+                  {item.studentsSnapshot.map((student, index) => {
                     const isPresent = student.status === 'Present';
+                    // Guarantee a unique key even for embedded sub-documents
+                    const studentKey = student._id || student.id || `snap_${index}`;
+                    
                     return (
-                      <View key={student.id} style={styles.studentRowSnapshot}>
+                      <View key={studentKey} style={styles.studentRowSnapshot}>
                         <View style={styles.studentMeta}>
                           <Text style={styles.studentNameText}>{student.name}</Text>
                           <Text style={styles.studentRollText}>{student.rollNumber}</Text>

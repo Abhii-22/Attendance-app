@@ -1,7 +1,12 @@
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { Alert } from 'react-native';
+
+// ⚠️ Ensure this matches your computer's IP address
+const API_BASE_URL = 'http://192.168.1.10:5000/api';
 
 export interface Student {
-  id: string;
+  id?: string;       // Local temporary ID
+  _id?: string;      // MongoDB database ID
   name: string;
   rollNumber: string;
   status: 'Present' | 'Absent';
@@ -17,7 +22,8 @@ export interface Teacher {
 }
 
 export interface HistoryRecord {
-  id: string;
+  id?: string;
+  _id?: string;
   className: string;
   dateString: string;
   submissionTime: string;
@@ -25,33 +31,22 @@ export interface HistoryRecord {
   teacherId: string;
   presentCount: number;
   totalStudents: number;
-  studentsSnapshot: Student[]; // Contains deep copied student statuses at submission time
+  studentsSnapshot: Student[];
 }
 
 interface AppContextType {
-  teachersList: Record<string, { profile: Teacher; securityPin: string }>;
   currentTeacher: Teacher | null;
   allStudentsData: Record<string, Student[]>;
   historyLogs: HistoryRecord[];
   setCurrentTeacher: (teacher: Teacher | null) => void;
   addNewStudent: (className: string, name: string, rollNumber: string) => void;
   updateAttendance: (className: string, studentId: string, status: 'Present' | 'Absent') => void;
-  saveToHistoryLog: (className: string, date: Date) => void;
+  saveToHistoryLog: (className: string, date: Date) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const TEACHERS_DATABASE: Record<string, { profile: Teacher; securityPin: string }> = {
-  'teacher1@university.edu': {
-    securityPin: '1111',
-    profile: { id: 't1', name: 'Dr. Rajesh Kumar', email: 'teacher1@university.edu', department: 'Computer Science', employeeId: 'EMP-CSE-01', designation: 'HOD / Professor' }
-  },
-  'teacher2@university.edu': {
-    securityPin: '2222',
-    profile: { id: 't2', name: 'Prof. Anjali Sharma', email: 'teacher2@university.edu', department: 'AI & Machine Learning', employeeId: 'EMP-AIML-02', designation: 'Assistant Professor' }
-  }
-};
-
+// Temporary local roster until the Fetch Students API is fully integrated
 const INITIAL_ROSTER: Record<string, Student[]> = {
   'CSE A': [
     { id: 'c1_1', name: 'Arjun Sharma', rollNumber: 'CSE-A-01', status: 'Absent' },
@@ -67,6 +62,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [allStudentsData, setAllStudentsData] = useState<Record<string, Student[]>>(INITIAL_ROSTER);
   const [historyLogs, setHistoryLogs] = useState<HistoryRecord[]>([]);
 
+  // Automatically fetch this teacher's history logs from MongoDB when they log in
+  useEffect(() => {
+    if (currentTeacher) {
+      fetch(`${API_BASE_URL}/history/${currentTeacher.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setHistoryLogs(data.logs);
+          }
+        })
+        .catch(err => console.error("Failed to fetch history logs:", err));
+    } else {
+      setHistoryLogs([]); // Clear logs if they log out
+    }
+  }, [currentTeacher]);
+
   const addNewStudent = (className: string, name: string, rollNumber: string) => {
     setAllStudentsData((prev) => {
       const currentClassList = prev[className] || [];
@@ -78,11 +89,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateAttendance = (className: string, studentId: string, status: 'Present' | 'Absent') => {
     setAllStudentsData((prev) => ({
       ...prev,
-      [className]: prev[className].map((student) => (student.id === studentId ? { ...student, status } : student)),
+      [className]: prev[className].map((student) => {
+        // Match against either local ID or database _id
+        const logUniqueId = student._id || student.id;
+        return logUniqueId === studentId ? { ...student, status } : student;
+      }),
     }));
   };
 
-  const saveToHistoryLog = (className: string, date: Date) => {
+  // Sends the snapshot to MongoDB
+  const saveToHistoryLog = async (className: string, date: Date) => {
     if (!currentTeacher) return;
 
     const currentClassRoster = allStudentsData[className] || [];
@@ -92,11 +108,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-    // CREATE A IMMUTABLE DEEP-COPY SNAPSHOT OF THE CURRENT STUDENT OBJECT ROSTER
-    const deepCopiedSnapshot = currentClassRoster.map(student => ({ ...student }));
+    // Create the deep-copy snapshot
+    const deepCopiedSnapshot = currentClassRoster.map(student => ({ 
+      id: student.id,
+      _id: student._id,
+      name: student.name,
+      rollNumber: student.rollNumber,
+      status: student.status
+    }));
 
-    const newLogEntry: HistoryRecord = {
-      id: `log_${Date.now()}`,
+    const logPayload = {
       className,
       dateString: formattedDate,
       submissionTime: timestamp,
@@ -107,18 +128,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       studentsSnapshot: deepCopiedSnapshot
     };
 
-    setHistoryLogs((prev) => [newLogEntry, ...prev]);
+    try {
+      // 1. Send the log to the Node.js Backend
+      const response = await fetch(`${API_BASE_URL}/history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(logPayload),
+      });
 
-    // Wipe/Reset current workspace to default state parameters for future submissions
-    setAllStudentsData((prev) => ({
-      ...prev,
-      [className]: prev[className].map(s => ({ ...s, status: 'Absent' }))
-    }));
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // 2. Add the newly saved DB record (which now has a MongoDB _id) to our local screen
+        setHistoryLogs((prev) => [data.log, ...prev]);
+
+        // 3. Reset the workspace roster back to 'Absent' defaults
+        setAllStudentsData((prev) => ({
+          ...prev,
+          [className]: prev[className].map(s => ({ ...s, status: 'Absent' }))
+        }));
+      } else {
+        Alert.alert("Database Error", "Failed to save log to MongoDB.");
+      }
+    } catch (error) {
+      console.error("Save Log Error:", error);
+      Alert.alert("Network Error", "Could not reach the backend to save this log.");
+    }
   };
 
   return (
     <AppContext.Provider value={{
-      teachersList: TEACHERS_DATABASE,
       currentTeacher,
       allStudentsData,
       historyLogs,

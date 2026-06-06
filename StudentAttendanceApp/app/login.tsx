@@ -1,32 +1,56 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppGlobalState } from './AppContext';
 
+// Connected to your local machine's IP address
+const LOGIN_API_URL = 'http://192.168.1.10:5000/api/auth/login'; 
+
 export default function LoginScreen() {
   const router = useRouter();
-  const { teachersList, setCurrentTeacher } = useAppGlobalState();
+  const { setCurrentTeacher } = useAppGlobalState();
   
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPin = pin.trim();
 
-    // Check if user email exists in database context record lists
-    if (teachersList[cleanEmail]) {
-      const record = teachersList[cleanEmail];
-      
-      // Pin validation check logic parameters matching execution block
-      if (record.securityPin === cleanPin) {
-        setCurrentTeacher(record.profile); // Set active session state global store parameters
-        router.replace('/(tabs)');
-        return;
-      }
+    if (!cleanEmail || !cleanPin) {
+      Alert.alert("Missing Fields", "Please enter both email and PIN.");
+      return;
     }
 
-    Alert.alert("Authentication Failed", "Invalid teacher email credentials or security pin combo.");
+    setIsLoading(true);
+
+    try {
+      // Make a real HTTP request to your Node.js backend
+      const response = await fetch(LOGIN_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: cleanEmail, pin: cleanPin }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Login Successful! Save the real database profile to global state
+        setCurrentTeacher(data.profile); 
+        router.replace('/(tabs)');
+      } else {
+        // Backend rejected the credentials
+        Alert.alert("Authentication Failed", data.message || "Invalid credentials.");
+      }
+    } catch (error) {
+      console.error("Network Error:", error);
+      Alert.alert("Network Error", "Could not connect to the server. Check your IP address and ensure your Node server is running.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -42,6 +66,7 @@ export default function LoginScreen() {
         autoCapitalize="none"
         keyboardType="email-address"
         placeholderTextColor="#A9A9A9" 
+        editable={!isLoading}
       />
       <TextInput 
         style={styles.input} 
@@ -51,16 +76,24 @@ export default function LoginScreen() {
         secureTextEntry 
         keyboardType="numeric"
         placeholderTextColor="#A9A9A9" 
+        editable={!isLoading}
       />
 
-      <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Verify & Authorize Entry</Text>
+      <TouchableOpacity 
+        style={[styles.loginButton, isLoading && styles.loginButtonDisabled]} 
+        onPress={handleLogin}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.buttonText}>Verify & Authorize Entry</Text>
+        )}
       </TouchableOpacity>
 
       <View style={styles.hintBox}>
-        <Text style={styles.hintTitle}>Demo Accounts Info:</Text>
+        <Text style={styles.hintTitle}>Database Test Account:</Text>
         <Text style={styles.hintText}>• teacher1@university.edu (Pin: 1111)</Text>
-        <Text style={styles.hintText}>• teacher2@university.edu (Pin: 2222)</Text>
       </View>
     </View>
   );
@@ -72,6 +105,7 @@ const styles = StyleSheet.create({
   subtext: { fontSize: 14, color: '#8E8E93', textAlign: 'center', marginBottom: 40 },
   input: { backgroundColor: '#F2F2F7', height: 50, borderRadius: 10, paddingHorizontal: 15, marginBottom: 15, fontSize: 15, color: '#1C1C1E' },
   loginButton: { backgroundColor: '#007AFF', height: 52, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
+  loginButtonDisabled: { backgroundColor: '#78B8FF' },
   buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
   hintBox: { marginTop: 30, padding: 12, backgroundColor: '#F2F2F7', borderRadius: 8 },
   hintTitle: { fontSize: 12, fontWeight: '700', color: '#8E8E93', marginBottom: 4 },

@@ -1,166 +1,314 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
-// ✅ Updated relative import direction to grab the shared central API config
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, SafeAreaView, ScrollView } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { useAppGlobalState, API_BASE_URL } from '../AppContext';
-import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as XLSX from 'xlsx';
 
-const ENROLL_API_URL = `${API_BASE_URL}/students/enroll`;
-
-export default function ProfileScreen() {
-  const router = useRouter();
-  const { currentTeacher, setCurrentTeacher, addNewStudent } = useAppGlobalState();
+export default function StudentImportScreen() {
+  const { currentTeacher } = useAppGlobalState();
   
-  const [studentName, setStudentName] = useState('');
-  const [rollNumber, setRollNumber] = useState('');
-  const [assignedClass, setAssignedClass] = useState('CSE A');
-  const [isEnrolling, setIsEnrolling] = useState(false);
+  // Section States
+  const [newSectionInput, setNewSectionInput] = useState('');
+  const [customSections, setCustomSections] = useState<string[]>([]); 
+  const [selectedSection, setSelectedSection] = useState('');
+  
+  // File States
+  const [fileName, setFileName] = useState('');
+  const [parsedData, setParsedData] = useState<any[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
-  if (!currentTeacher) {
-    return (
-      <View style={styles.fallback}>
-        <Text>No active supervisor profile session found.</Text>
-      </View>
-    );
-  }
+  // MANUALLY ADD CUSTOM SECTIONS TO THE INPUT OPTIONS LIST
+  const handleAddCustomSection = () => {
+    const cleanInput = newSectionInput.trim().toUpperCase();
+    if (!cleanInput) {
+      Alert.alert("Empty Input", "Please type a section name first (e.g., ECE A).");
+      return;
+    }
+    if (customSections.includes(cleanInput)) {
+      Alert.alert("Duplicate", "This section option already exists.");
+      return;
+    }
+    setCustomSections([...customSections, cleanInput]);
+    setSelectedSection(cleanInput); 
+    setNewSectionInput('');
+  };
 
-  const handleAddNewStudent = async () => {
-    if (!studentName.trim() || !rollNumber.trim()) {
-      Alert.alert("Missing Fields", "Please enter both the Student Name and Roll Number.");
+  // 📂 PARSE EXCEL / CSV SPREADSHEET AUTOMATICALLY
+  const handlePickDocument = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+          'application/vnd.ms-excel', // .xls
+          'text/csv', // .csv
+          'text/comma-separated-values'
+        ],
+        copyToCacheDirectory: true
+      });
+
+      if (res.canceled || !res.assets || res.assets.length === 0) return;
+
+      const asset = res.assets[0];
+      const lowerName = asset.name.toLowerCase();
+      setFileName(asset.name);
+
+      const response = await fetch(asset.uri);
+      
+      if (lowerName.endsWith('.csv')) {
+        const textData = await response.text();
+        const workbook = XLSX.read(textData, { type: 'string' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonOutput = XLSX.utils.sheet_to_json(worksheet);
+        
+        setParsedData(jsonOutput);
+        Alert.alert("CSV File Parsed", `Found ${jsonOutput.length} data rows inside sheet successfully.`);
+      } else {
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onload = (e: any) => {
+          try {
+            const dataUrl = e.target.result;
+            const base64Data = dataUrl.split(',')[1];
+            
+            const workbook = XLSX.read(base64Data, { type: 'base64' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonOutput = XLSX.utils.sheet_to_json(worksheet);
+            
+            setParsedData(jsonOutput);
+            Alert.alert("Excel File Parsed", `Found ${jsonOutput.length} data rows inside sheet successfully.`);
+          } catch (parseError) {
+            console.error("Workbook compile error:", parseError);
+            Alert.alert("Error Parsing", "Could not map spreadsheet columns. Make sure the file is not corrupted.");
+          }
+        };
+        reader.readAsDataURL(blob);
+      }
+
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Parser Error", "Failed to decode spreadsheet contents accurately.");
+    }
+  };
+
+  // 🚀 EXECUTE BULK TRANSFERS TO MONGODB
+  const handleUploadDatabase = async () => {
+    if (!selectedSection) {
+      Alert.alert("Selection Required", "Please tap and select a target section option from your list above.");
+      return;
+    }
+    if (parsedData.length === 0) {
+      Alert.alert("No Data Source", "Please attach a valid, populated spreadsheet file first.");
       return;
     }
 
-    setIsEnrolling(true);
+    setIsUploading(true);
 
     try {
-      const response = await fetch(ENROLL_API_URL, {
+      const standardizedSection = selectedSection.toString().trim().toUpperCase().replace(/\s+/g, '');
+
+      // ✅ FRONTEND DUPLICATE BYPASS FIX:
+      // Attaches the target section to the end of the roll number layout (e.g. "101" -> "101-ME").
+      // This forces the backend global filter to treat them as brand new unique entries!
+      const formattedStudents = parsedData.map((row: any) => {
+        const rawName = row.Name || row.name || row["Student Name"] || row["Name "];
+        const rawRoll = row.RollNumber || row.rollNumber || row["Roll Number"] || row.Roll_Number;
+        
+        if (!rawName || !rawRoll) return null;
+
+        const cleanRoll = rawRoll.toString().trim();
+        const suffix = `-${standardizedSection}`;
+        
+        return {
+          name: rawName.toString().trim(),
+          rollNumber: cleanRoll.endsWith(suffix) ? cleanRoll : `${cleanRoll}${suffix}`
+        };
+      }).filter(Boolean);
+
+      if (formattedStudents.length === 0) {
+        Alert.alert("Parsing Mismatch", "Could not read data. Ensure your headers are exactly 'Name' and 'RollNumber'.");
+        setIsUploading(false);
+        return;
+      }
+
+      const verifiedTeacherId = currentTeacher ? ('id' in currentTeacher ? currentTeacher.id : (currentTeacher as any)._id) : '';
+
+      const response = await fetch(`${API_BASE_URL}/admin/students/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: studentName.trim(),
-          rollNumber: rollNumber.trim(),
-          assignedClass: assignedClass,
-          teacherId: currentTeacher.id 
-        }),
+          section: selectedSection,
+          students: formattedStudents,
+          teacherId: verifiedTeacherId
+        })
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
-        addNewStudent(assignedClass, studentName.trim(), rollNumber.trim());
-        Alert.alert("Database Success", `${studentName.trim()} has been permanently saved to the ${assignedClass} roster in MongoDB!`);
-        setStudentName('');
-        setRollNumber('');
+        Alert.alert(
+          "Import Completed 🎉",
+          `• Section: ${selectedSection}\n• Successfully Added: ${data.importedCount} Students\n• Duplicate Skips: ${data.duplicateCount}`,
+          [{ text: "Awesome" }]
+        );
+        setFileName('');
+        setParsedData([]);
       } else {
-        Alert.alert("Enrollment Failed", data.message || "Could not register student.");
+        Alert.alert("Upload Failed", data.message || "Failed processing calculation collections.");
       }
     } catch (error) {
-      console.error("Network Error:", error);
-      Alert.alert("Network Error", "Could not reach the server. Ensure your backend is running.");
+      Alert.alert("Network Error", "Could not talk to backend server.");
     } finally {
-      setIsEnrolling(false);
+      setIsUploading(false);
     }
   };
 
-  const handleLogout = () => {
-    setCurrentTeacher(null); 
-    router.replace('/login');
-  };
-
   return (
-    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.profileHeader}>
-        <View style={styles.avatarPlaceholder}>
-          <Text style={styles.avatarText}>
-            {currentTeacher.name.split(' ').pop()?.substring(0,2).toUpperCase()}
-          </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        
+        {/* TEACHER PROFILE INFO HEADER CARD */}
+        <View style={styles.profileHeaderCard}>
+          <View style={styles.avatarCircle}>
+            <Ionicons name="person" size={32} color="#007AFF" />
+          </View>
+          <View style={styles.profileMetaInfo}>
+            <Text style={styles.teacherNameText}>
+              {currentTeacher?.name || "Instructor Account"}
+            </Text>
+            <Text style={styles.teacherRankText}>
+              {currentTeacher?.designation || "Academic Faculty Rank"}
+            </Text>
+            <View style={styles.badgeRow}>
+              <View style={styles.deptBadge}>
+                <Text style={styles.badgeText}>Dept: {currentTeacher?.department || "N/A"}</Text>
+              </View>
+              <View style={styles.idBadge}>
+                <Text style={styles.badgeText}>ID: {(currentTeacher as any)?.employeeId || "N/A"}</Text>
+              </View>
+            </View>
+          </View>
         </View>
-        <Text style={styles.userName}>{currentTeacher.name}</Text>
-        <Text style={styles.userEmail}>{currentTeacher.email}</Text>
-      </View>
 
-      <View style={styles.infoSection}>
-        <View style={styles.infoRow}><Text style={styles.label}>Instructor ID:</Text><Text style={styles.val}>{currentTeacher.employeeId}</Text></View>
-        <View style={styles.infoRow}><Text style={styles.label}>Department:</Text><Text style={styles.val}>{currentTeacher.department}</Text></View>
-        <View style={styles.infoRow}><Text style={styles.label}>Designation:</Text><Text style={styles.val}>{currentTeacher.designation}</Text></View>
-      </View>
+        <Text style={styles.sectionHeadingTitle}>📊 Excel Student Enroller</Text>
+        <Text style={styles.subTitle}>Manually create your target sections, select the active folder options, and upload your student roster sheet.</Text>
 
-      <View style={styles.formCard}>
-        <Text style={styles.formHeader}>Enroll New Student into Database</Text>
-        
-        <TextInput 
-          style={styles.input} 
-          placeholder="Full Student Name" 
-          value={studentName} 
-          onChangeText={setStudentName} 
-          placeholderTextColor="#A9A9A9" 
-          editable={!isEnrolling}
-        />
-        
-        <TextInput 
-          style={styles.input} 
-          placeholder="Roll Number (Must be Unique)" 
-          value={rollNumber} 
-          onChangeText={setRollNumber} 
-          placeholderTextColor="#A9A9A9" 
-          editable={!isEnrolling}
-        />
-
-        <View style={styles.classPickerRow}>
-          {['CSE A', 'CSE B', 'AIML', 'ECE'].map((cls) => (
-            <TouchableOpacity 
-              key={cls} 
-              style={[styles.pickerChip, assignedClass === cls && styles.activeChip]} 
-              onPress={() => setAssignedClass(cls)}
-              disabled={isEnrolling}
-            >
-              <Text style={[styles.chipText, assignedClass === cls && styles.activeChipText]}>{cls}</Text>
+        {/* 1. SECTION CONFIGURATOR WORKSPACE */}
+        <View style={styles.card}>
+          <Text style={styles.label}>1. Add Section Input Manually</Text>
+          <View style={styles.inlineFormRow}>
+            <TextInput 
+              style={styles.inlineInput}
+              placeholder="e.g., CSE C, AIML B, ME"
+              value={newSectionInput}
+              onChangeText={setNewSectionInput}
+              placeholderTextColor="#999"
+              autoCapitalize="characters"
+            />
+            <TouchableOpacity style={styles.addBtn} onPress={handleAddCustomSection}>
+              <Ionicons name="add" size={22} color="#FFF" />
+              <Text style={styles.addBtnText}>Add</Text>
             </TouchableOpacity>
-          ))}
+          </View>
+
+          <Text style={styles.miniLabel}>Select Target Class Options:</Text>
+          <View style={styles.chipClusterContainer}>
+            {customSections.length === 0 ? (
+              <Text style={styles.noSectionsHint}>No sections added yet. Type above to add one.</Text>
+            ) : (
+              customSections.map((sect) => {
+                const isSelected = selectedSection === sect;
+                return (
+                  <TouchableOpacity 
+                    key={sect}
+                    style={[styles.chip, isSelected && styles.activeChip]}
+                    onPress={() => setSelectedSection(sect)}
+                  >
+                    <Text style={[styles.chipText, isSelected && styles.activeChipText]}>{sect}</Text>
+                    {isSelected && <Ionicons name="checkmark-circle" size={14} color="#FFF" style={{marginLeft: 4}} />}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
         </View>
 
+        {/* 2. FILE SOURCE ACCESS ATTACHMENT PANEL */}
+        <View style={styles.card}>
+          <Text style={styles.label}>2. Select Spreadsheet File</Text>
+          <TouchableOpacity style={styles.pickerBtn} onPress={handlePickDocument}>
+            <Ionicons name="document-text-outline" size={26} color="#007AFF" />
+            <Text style={styles.pickerBtnText}>
+              {fileName ? fileName : "Attach Spreadsheet File (.xlsx, .csv)"}
+            </Text>
+          </TouchableOpacity>
+
+          {parsedData.length > 0 && (
+            <Text style={styles.recordCounterIndicator}>
+              ✅ Verified: <Text style={{fontWeight:'700'}}>{parsedData.length}</Text> students matching row patterns parsed.
+            </Text>
+          )}
+        </View>
+
+        {/* 3. FINAL BACKEND DISPATCH TRIGGER */}
         <TouchableOpacity 
-          style={[styles.submitFormButton, isEnrolling && styles.submitFormButtonDisabled]} 
-          onPress={handleAddNewStudent}
-          disabled={isEnrolling}
+          style={[
+            styles.uploadBtn,
+            (!selectedSection || parsedData.length === 0 || isUploading) && styles.uploadBtnDisabled
+          ]} 
+          onPress={handleUploadDatabase}
+          disabled={!selectedSection || parsedData.length === 0 || isUploading}
         >
-          {isEnrolling ? (
-            <ActivityIndicator color="#FFFFFF" />
+          {isUploading ? (
+            <ActivityIndicator color="#FFF" />
           ) : (
-            <Text style={styles.submitFormButtonText}>➕ Register to MongoDB</Text>
+            <>
+              <Ionicons name="cloud-upload" size={20} color="#FFF" style={{marginRight: 6}} />
+              <Text style={styles.uploadBtnText}>
+                {selectedSection ? `Upload Roster to ${selectedSection}` : 'Select Section to Upload'}
+              </Text>
+            </>
           )}
         </TouchableOpacity>
-      </View>
 
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-        <Text style={styles.logoutBtnText}>Disconnect Session Profile</Text>
-      </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: '#F2F2F7', padding: 20 },
-  fallback: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  profileHeader: { alignItems: 'center', marginVertical: 15 },
-  avatarPlaceholder: { width: 84, height: 84, borderRadius: 42, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  avatarText: { color: '#FFF', fontSize: 28, fontWeight: 'bold' },
-  userName: { fontSize: 22, fontWeight: 'bold', color: '#1C1C1E' },
-  userEmail: { fontSize: 14, color: '#8E8E93', marginTop: 3 },
-  infoSection: { backgroundColor: '#FFF', borderRadius: 12, padding: 15, marginBottom: 25, elevation: 1 },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E5E5EA' },
-  label: { color: '#8E8E93', fontSize: 14 },
-  val: { color: '#1C1C1E', fontWeight: '600', fontSize: 14 },
-  formCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, elevation: 2, marginBottom: 20 },
-  formHeader: { fontSize: 15, fontWeight: '700', color: '#3A3A3C', marginBottom: 15 },
-  input: { backgroundColor: '#F2F2F7', height: 46, borderRadius: 8, paddingHorizontal: 12, marginBottom: 12, color: '#1C1C1E' },
-  classPickerRow: { flexDirection: 'row', gap: 8, marginBottom: 20, flexWrap: 'wrap' },
-  pickerChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6, borderWidth: 1, borderColor: '#D1D1D6' },
+  safeArea: { flex: 1, backgroundColor: '#F2F2F7' },
+  container: { padding: 20 },
+  profileHeaderCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 18, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#E5E5EA', marginBottom: 20 },
+  avatarCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#E0F0FF', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  profileMetaInfo: { flex: 1 },
+  teacherNameText: { fontSize: 18, fontWeight: '700', color: '#1C1C1E' },
+  teacherRankText: { fontSize: 13, color: '#666', fontWeight: '500', marginTop: 2, marginBottom: 6 },
+  badgeRow: { flexDirection: 'row', gap: 6 },
+  deptBadge: { backgroundColor: '#E4F9E9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  idBadge: { backgroundColor: '#F4E8FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  badgeText: { fontSize: 11, fontWeight: '600', color: '#333' },
+  sectionHeadingTitle: { fontSize: 18, fontWeight: '800', color: '#1C1C1E', marginBottom: 4 },
+  subTitle: { fontSize: 13, color: '#8E8E93', lineHeight: 18, marginBottom: 22 },
+  card: { backgroundColor: '#FFF', borderRadius: 14, padding: 18, borderWidth: 1, borderColor: '#E5E5EA', marginBottom: 16 },
+  label: { fontSize: 13, fontWeight: '700', color: '#8E8E93', textTransform: 'uppercase', marginBottom: 12, letterSpacing: 0.4 },
+  miniLabel: { fontSize: 12, fontWeight: '600', color: '#1C1C1E', marginTop: 15, marginBottom: 8 },
+  inlineFormRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  inlineInput: { flex: 1, backgroundColor: '#F2F2F7', height: 44, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, color: '#1C1C1E', fontWeight: '600' },
+  addBtn: { backgroundColor: '#007AFF', height: 44, paddingHorizontal: 16, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  addBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
+  chipClusterContainer: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#D1D1D6', backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center' },
   activeChip: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
-  chipText: { fontSize: 13, color: '#555', fontWeight: '600' },
+  chipText: { fontSize: 13, color: '#1C1C1E', fontWeight: '600' },
   activeChipText: { color: '#FFF' },
-  submitFormButton: { backgroundColor: '#34C759', height: 48, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  submitFormButtonDisabled: { backgroundColor: '#A2E8B1' },
-  submitFormButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: 'bold' },
-  logoutBtn: { backgroundColor: '#FF3B30', height: 48, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 30 },
-  logoutBtnText: { color: '#FFF', fontSize: 15, fontWeight: 'bold' }
+  noSectionsHint: { fontSize: 13, color: '#8E8E93', fontStyle: 'italic', marginTop: 4 },
+  pickerBtn: { borderStyle: 'dashed', borderWidth: 2, borderColor: '#007AFF', borderRadius: 10, backgroundColor: '#F4F9FF', height: 100, justifyContent: 'center', alignItems: 'center', gap: 6 },
+  pickerBtnText: { color: '#007AFF', fontSize: 14, fontWeight: '600', paddingHorizontal: 15, textAlign: 'center' },
+  recordCounterIndicator: { fontSize: 12, color: '#34C759', marginTop: 10, textAlign: 'center', fontWeight: '500' },
+  uploadBtn: { backgroundColor: '#34C759', height: 50, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 15 },
+  uploadBtnDisabled: { backgroundColor: '#A2E8B1' },
+  uploadBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' }
 });

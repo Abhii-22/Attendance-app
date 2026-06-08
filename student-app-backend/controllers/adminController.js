@@ -2,8 +2,7 @@ const Teacher = require('../models/Teacher');
 const Student = require('../models/Student');
 const HistoryLog = require('../models/HistoryLog');
 
-// @desc    Get complete system counts for dashboard analytics cards
-// @route   GET /api/admin/stats
+// Get complete system counts for dashboard analytics cards
 const getSystemStats = async (req, res) => {
   try {
     const totalTeachers = (await Teacher.countDocuments({})) || 0;
@@ -20,16 +19,12 @@ const getSystemStats = async (req, res) => {
     console.error("Admin Stats Fetch Error:", error);
     return res.status(500).json({ 
       success: false, 
-      message: "Internal server registry metrics failure",
-      totalTeachers: 0,
-      totalStudents: 0,
-      totalLogs: 0 
+      message: "Internal server registry metrics failure"
     });
   }
 };
 
-// @desc    Fetch all registered teachers for the directory layout
-// @route   GET /api/admin/teachers
+// Fetch all registered teachers for the directory list view
 const getAllTeachers = async (req, res) => {
   try {
     const teachers = await Teacher.find({}).sort({ createdAt: -1 });
@@ -41,14 +36,12 @@ const getAllTeachers = async (req, res) => {
     console.error("Fetch Teachers Error:", error);
     return res.status(500).json({ 
       success: false, 
-      message: "Server error fetching instructor registry",
-      teachers: [] 
+      message: "Server error fetching instructor registry" 
     });
   }
 };
 
-// @desc    Provision new Teacher authorization profiles
-// @route   POST /api/admin/teachers/create
+// Provision new Teacher authorization profiles
 const createTeacherProfile = async (req, res) => {
   const { name, email, department, employeeId, designation, securityPin } = req.body;
 
@@ -83,8 +76,7 @@ const createTeacherProfile = async (req, res) => {
   }
 };
 
-// @desc    Update an instructor profile parameters
-// @route   PUT /api/admin/teachers/:id
+// Update an instructor profile parameters
 const updateTeacherProfile = async (req, res) => {
   const { id } = req.params;
   const { name, email, department, employeeId, designation, securityPin } = req.body;
@@ -118,8 +110,7 @@ const updateTeacherProfile = async (req, res) => {
   }
 };
 
-// @desc    Delete an instructor profile permanently
-// @route   DELETE /api/admin/teachers/:id
+// Delete an instructor profile permanently
 const deleteTeacherProfile = async (req, res) => {
   const { id } = req.params;
 
@@ -136,10 +127,75 @@ const deleteTeacherProfile = async (req, res) => {
   }
 };
 
+// BULK Student Excel/CSV Importer
+const importStudentsFromExcel = async (req, res) => {
+  const { students, section, teacherId } = req.body;
+
+  if (!section || !students || !Array.isArray(students)) {
+    return res.status(400).json({ success: false, message: "Missing section allocation name or student dataset records." });
+  }
+
+  try {
+    let importedCount = 0;
+    let duplicateCount = 0;
+    
+    // Force clean uppercase formats for matching reliability
+    const targetClassStr = section.toString().trim().toUpperCase();
+
+    let verifiedId = teacherId || null;
+    if (!verifiedId) {
+      const fallbackTeacher = await Teacher.findOne({});
+      if (fallbackTeacher) {
+        verifiedId = fallbackTeacher._id;
+      }
+    }
+
+    for (const student of students) {
+      const name = student.name || student.Name;
+      const rollNumber = student.rollNumber || student.RollNumber;
+
+      if (!name || !rollNumber) continue;
+
+      const existingStudent = await Student.findOne({ rollNumber: rollNumber.toString().trim() });
+      
+      if (existingStudent) {
+        duplicateCount++;
+        continue;
+      }
+
+      // Populate every field simultaneously to satisfy frontend logic constraints
+      await Student.create({
+        name: name.toString().trim(),
+        rollNumber: rollNumber.toString().trim(),
+        class: targetClassStr,          
+        section: targetClassStr,        
+        assignedClass: targetClassStr,  
+        registeredBy: verifiedId
+      });
+
+      importedCount++;
+    }
+
+    console.log(`📊 Bulk Import Complete: Added ${importedCount} students to section [${targetClassStr}]`);
+
+    return res.status(200).json({
+      success: true,
+      message: "Bulk upload processed cleanly",
+      importedCount,
+      duplicateCount
+    });
+
+  } catch (error) {
+    console.error("Excel Database Import Error:", error);
+    return res.status(500).json({ success: false, message: "Internal server data compilation error." });
+  }
+};
+
 module.exports = {
   getSystemStats,
   getAllTeachers,
   createTeacherProfile,
   updateTeacherProfile,
-  deleteTeacherProfile
+  deleteTeacherProfile,
+  importStudentsFromExcel
 };

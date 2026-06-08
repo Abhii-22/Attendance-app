@@ -1,23 +1,25 @@
 const Student = require('../models/Student');
 
-// @desc    Register a new student to a class
+// @desc    Register a new student to a class manually
 // @route   POST /api/students/enroll
 const enrollStudent = async (req, res) => {
   const { name, rollNumber, assignedClass, teacherId } = req.body;
 
   try {
-    // 1. Check if roll number already exists
     const existingStudent = await Student.findOne({ rollNumber });
     if (existingStudent) {
       return res.status(400).json({ success: false, message: 'Roll number already registered.' });
     }
 
-    // 2. Create the new student
+    const uniformSection = assignedClass.toString().trim().toUpperCase();
+
     const newStudent = await Student.create({
-      name,
-      rollNumber,
-      assignedClass,
-      registeredBy: teacherId // Match key to schema definition
+      name: name.toString().trim(),
+      rollNumber: rollNumber.toString().trim(),
+      class: uniformSection,
+      section: uniformSection,
+      assignedClass: uniformSection,
+      registeredBy: teacherId
     });
 
     res.status(201).json({
@@ -32,18 +34,31 @@ const enrollStudent = async (req, res) => {
   }
 };
 
-// @desc    Get all students registered by a specific teacher
+// @desc    Get all students STRICLY registered by the logged-in teacher
 // @route   GET /api/students/teacher/:teacherId
 const getStudentsByTeacher = async (req, res) => {
   const { teacherId } = req.params;
 
   try {
-    // Queries the DB looking for the specific ID key assigned during enrollment
-    const students = await Student.find({ registeredBy: teacherId });
+    // ✅ FIXED: Strict isolation. Removed loose global parameters.
+    const rawStudents = await Student.find({ registeredBy: teacherId }).sort({ rollNumber: 1 });
+
+    // Force runtime structural normalization
+    const cleanStudents = (rawStudents || []).map(student => {
+      const doc = student.toObject();
+      const fallbackSection = (doc.assignedClass || doc.class || doc.section || "GENERAL").toString().trim().toUpperCase();
+      
+      return {
+        ...doc,
+        class: fallbackSection,          
+        section: fallbackSection,        
+        assignedClass: fallbackSection   
+      };
+    });
     
     res.status(200).json({
       success: true,
-      students
+      students: cleanStudents
     });
   } catch (error) {
     console.error('Fetch Students Error:', error);

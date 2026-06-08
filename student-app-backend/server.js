@@ -7,7 +7,11 @@ const app = express();
 
 // Global Middlewares
 app.use(cors());
-app.use(express.json());
+
+// ✅ FIX: Increased body limit limits to 50mb. 
+// This allows large Base64 encoded Excel data packets to process without throwing 404/payload limits.
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 1. Import API Route Files
 const authRoutes = require('./routes/authRoutes');

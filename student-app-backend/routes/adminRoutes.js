@@ -5,7 +5,8 @@ const {
   getAllTeachers,
   createTeacherProfile,
   updateTeacherProfile,
-  deleteTeacherProfile 
+  deleteTeacherProfile,
+  importStudentsFromExcel
 } = require('../controllers/adminController');
 
 // System Counter Metrics Routing Prefix
@@ -16,5 +17,8 @@ router.get('/teachers', getAllTeachers);
 router.post('/teachers/create', createTeacherProfile);
 router.put('/teachers/:id', updateTeacherProfile);
 router.delete('/teachers/:id', deleteTeacherProfile);
+
+// Student Excel Import Route Mapping
+router.post('/students/import', importStudentsFromExcel);
 
 module.exports = router;

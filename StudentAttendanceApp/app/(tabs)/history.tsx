@@ -95,8 +95,6 @@ const styles = StyleSheet.create({
   emptyBox: { alignItems: 'center', marginTop: 60, paddingHorizontal: 20 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: '#1C1C1E', marginBottom: 6 },
   emptySubtitle: { fontSize: 13, color: '#8E8E93', textAlign: 'center', lineHeight: 18 },
-  
-  // Card Structure Setup
   historyCard: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2, borderWidth: 1, borderColor: '#E5E5EA' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F2F2F7', paddingBottom: 10, marginBottom: 12 },
   classBadge: { backgroundColor: '#E0F0FF', color: '#007AFF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, fontSize: 13, fontWeight: '700' },
@@ -109,16 +107,12 @@ const styles = StyleSheet.create({
   clickHint: { fontSize: 12, color: '#007AFF', fontWeight: '600', marginTop: 8, fontStyle: 'italic' },
   cardFooter: { borderTopWidth: 1, borderTopColor: '#F2F2F7', paddingTop: 8, marginTop: 12 },
   footerSignature: { fontSize: 11, color: '#8E8E93', fontStyle: 'italic' },
-
-  // Immutable Roster Expansion Subpanel Elements
   rosterExpansionPanel: { marginTop: 15, padding: 12, backgroundColor: '#F8F8FA', borderRadius: 10, borderWidth: 1, borderColor: '#E5E5EA', gap: 8 },
   panelTitle: { fontSize: 13, fontWeight: '700', color: '#666', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
   studentRowSnapshot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#EFEFF2' },
   studentMeta: { flex: 1 },
   studentNameText: { fontSize: 14, fontWeight: '600', color: '#1C1C1E' },
   studentRollText: { fontSize: 11, color: '#8E8E93', marginTop: 1 },
-  
-  // Read-only Non-Touch status labels badges
   staticBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, minWidth: 74, alignItems: 'center' },
   badgePresent: { backgroundColor: '#E4F9E9' },
   badgeAbsent: { backgroundColor: '#FFE5E5' },

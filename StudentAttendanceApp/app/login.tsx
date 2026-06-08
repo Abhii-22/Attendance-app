@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAppGlobalState } from './AppContext';
+// ✅ Dynamically imports the network URL string to prevent configuration drift
+import { useAppGlobalState, API_BASE_URL } from './AppContext';
 
-// Connected to your local machine's IP address
-const LOGIN_API_URL = 'http://192.168.1.10:5000/api/auth/login'; 
+const LOGIN_API_URL = `${API_BASE_URL}/auth/login`; 
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -26,7 +26,6 @@ export default function LoginScreen() {
     setIsLoading(true);
 
     try {
-      // Make a real HTTP request to your Node.js backend
       const response = await fetch(LOGIN_API_URL, {
         method: 'POST',
         headers: {
@@ -38,11 +37,9 @@ export default function LoginScreen() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Login Successful! Save the real database profile to global state
         setCurrentTeacher(data.profile); 
         router.replace('/(tabs)');
       } else {
-        // Backend rejected the credentials
         Alert.alert("Authentication Failed", data.message || "Invalid credentials.");
       }
     } catch (error) {

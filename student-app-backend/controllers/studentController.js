@@ -17,7 +17,7 @@ const enrollStudent = async (req, res) => {
       name,
       rollNumber,
       assignedClass,
-      registeredBy: teacherId
+      registeredBy: teacherId // Match key to schema definition
     });
 
     res.status(201).json({
@@ -32,6 +32,26 @@ const enrollStudent = async (req, res) => {
   }
 };
 
+// @desc    Get all students registered by a specific teacher
+// @route   GET /api/students/teacher/:teacherId
+const getStudentsByTeacher = async (req, res) => {
+  const { teacherId } = req.params;
+
+  try {
+    // Queries the DB looking for the specific ID key assigned during enrollment
+    const students = await Student.find({ registeredBy: teacherId });
+    
+    res.status(200).json({
+      success: true,
+      students
+    });
+  } catch (error) {
+    console.error('Fetch Students Error:', error);
+    res.status(500).json({ success: false, message: 'Server error fetching student lists' });
+  }
+};
+
 module.exports = {
-  enrollStudent
+  enrollStudent,
+  getStudentsByTeacher
 };

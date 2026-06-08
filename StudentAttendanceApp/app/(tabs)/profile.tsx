@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
-import { useAppGlobalState } from '../AppContext';
+// ✅ Updated relative import direction to grab the shared central API config
+import { useAppGlobalState, API_BASE_URL } from '../AppContext';
 import { useRouter } from 'expo-router';
 
-// ⚠️ Uses your computer's local IP address
-const ENROLL_API_URL = 'http://192.168.1.10:5000/api/students/enroll';
+const ENROLL_API_URL = `${API_BASE_URL}/students/enroll`;
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -15,7 +15,6 @@ export default function ProfileScreen() {
   const [assignedClass, setAssignedClass] = useState('CSE A');
   const [isEnrolling, setIsEnrolling] = useState(false);
 
-  // Fallback protection check
   if (!currentTeacher) {
     return (
       <View style={styles.fallback}>
@@ -33,7 +32,6 @@ export default function ProfileScreen() {
     setIsEnrolling(true);
 
     try {
-      // Send real data to your MongoDB backend
       const response = await fetch(ENROLL_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -41,23 +39,18 @@ export default function ProfileScreen() {
           name: studentName.trim(),
           rollNumber: rollNumber.trim(),
           assignedClass: assignedClass,
-          teacherId: currentTeacher.id // Attach the logged-in teacher's ID
+          teacherId: currentTeacher.id 
         }),
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Update local state so the student appears instantly without a refresh
         addNewStudent(assignedClass, studentName.trim(), rollNumber.trim());
-        
         Alert.alert("Database Success", `${studentName.trim()} has been permanently saved to the ${assignedClass} roster in MongoDB!`);
-        
-        // Clear inputs after success
         setStudentName('');
         setRollNumber('');
       } else {
-        // Backend returned an error (e.g., Roll Number already exists)
         Alert.alert("Enrollment Failed", data.message || "Could not register student.");
       }
     } catch (error) {
@@ -75,8 +68,6 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-      
-      {/* Teacher Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.avatarPlaceholder}>
           <Text style={styles.avatarText}>
@@ -87,14 +78,12 @@ export default function ProfileScreen() {
         <Text style={styles.userEmail}>{currentTeacher.email}</Text>
       </View>
 
-      {/* Teacher Corporate Details */}
       <View style={styles.infoSection}>
         <View style={styles.infoRow}><Text style={styles.label}>Instructor ID:</Text><Text style={styles.val}>{currentTeacher.employeeId}</Text></View>
         <View style={styles.infoRow}><Text style={styles.label}>Department:</Text><Text style={styles.val}>{currentTeacher.department}</Text></View>
         <View style={styles.infoRow}><Text style={styles.label}>Designation:</Text><Text style={styles.val}>{currentTeacher.designation}</Text></View>
       </View>
 
-      {/* Database Registration Form */}
       <View style={styles.formCard}>
         <Text style={styles.formHeader}>Enroll New Student into Database</Text>
         
@@ -142,7 +131,6 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Logout Action */}
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutBtnText}>Disconnect Session Profile</Text>
       </TouchableOpacity>

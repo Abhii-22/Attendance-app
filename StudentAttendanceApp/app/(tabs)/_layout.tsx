@@ -62,6 +62,15 @@ export default function TabsLayout() {
         }}
       />
 
+      <Tabs.Screen 
+  name="analytics" 
+  options={{ 
+    title: 'Analytics', 
+    headerTitle: 'Student Performance',
+    tabBarIcon: ({ color }) => <Ionicons name="pie-chart" size={24} color={color} /> 
+  }} 
+/>
+
       {/* Hide secondary routes from physically appearing on the bottom tab bar line */}
       <Tabs.Screen name="dashboard" options={{ href: null, title: 'Dashboard' }} />
       <Tabs.Screen name="explore" options={{ href: null, title: 'Explore' }} />

@@ -1,12 +1,28 @@
-import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import React, { useCallback } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, SafeAreaView, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppGlobalState } from '../AppContext';
 import { Ionicons } from '@expo/vector-icons';
+// ✅ IMPORT useFocusEffect TO LISTEN TO TAB FOCUS TRANSITIONS
+import { useFocusEffect } from '@react-navigation/native';
+
+const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { currentTeacher, allStudentsData, historyLogs } = useAppGlobalState();
+  // ✅ Extracted refreshStudentsList from your global state context to force local state refreshes
+  const { currentTeacher, allStudentsData, historyLogs, refreshStudentsList } = useAppGlobalState();
+
+  // ✅ INSTANT AUTOMATIC UPDATE FIX:
+  // Runs every single time the teacher switches onto the Home Tab view.
+  // It pulls fresh data into 'allStudentsData' so the counts update instantly!
+  useFocusEffect(
+    useCallback(() => {
+      if (typeof refreshStudentsList === 'function') {
+        refreshStudentsList();
+      }
+    }, [])
+  );
 
   if (!currentTeacher) {
     return (
@@ -30,12 +46,13 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         
-        {/* HEADER */}
-        <View style={styles.header}>
-          <View style={styles.greetingTextContainer}>
+        {/* 🏢 STRUCTURE PANEL 1: PROFILE HERO HEADER */}
+        <View style={styles.profileHeroSection}>
+          <View style={styles.heroLeft}>
             <Text style={styles.greetingSubtitle}>{greeting},</Text>
             <Text style={styles.greetingTitle}>{currentTeacher.name}</Text>
             <View style={styles.departmentBadge}>
+              <Ionicons name="business" size={12} color="#007AFF" style={{ marginRight: 4 }} />
               <Text style={styles.departmentBadgeText}>{currentTeacher.department}</Text>
             </View>
           </View>
@@ -46,55 +63,84 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* METRICS */}
-        <View style={styles.statsContainer}>
-          <View style={[styles.statCard, { backgroundColor: '#E0F0FF', borderColor: '#B3D7FF' }]}>
-            <Ionicons name="people" size={22} color="#007AFF" />
-            <Text style={[styles.statNumber, { color: '#0056B3' }]}>{totalStudents}</Text>
-            <Text style={styles.statLabel}>Students</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#E4F9E9', borderColor: '#B9F0C8' }]}>
-            <Ionicons name="library" size={22} color="#34C759" />
-            <Text style={[styles.statNumber, { color: '#1E6B30' }]}>{totalClasses}</Text>
-            <Text style={styles.statLabel}>Classes</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#F4E8FF', borderColor: '#E1C4FF' }]}>
-            <Ionicons name="checkmark-done-circle" size={22} color="#AF52DE" />
-            <Text style={[styles.statNumber, { color: '#6A1B9A' }]}>{myRecentLogs}</Text>
-            <Text style={styles.statLabel}>Logs</Text>
+        {/* 📊 STRUCTURE PANEL 2: INTEGRATED QUICK-METRIC STRIP */}
+        <View style={styles.metricsWrapperCard}>
+          <Text style={styles.cardHeaderLabel}>DEPARTMENT SNAPSHOT</Text>
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <View style={[styles.iconCircle, { backgroundColor: '#E0F0FF' }]}>
+                <Ionicons name="people" size={18} color="#007AFF" />
+              </View>
+              <Text style={styles.statNumber}>{totalStudents}</Text>
+              <Text style={styles.statLabel}>Students</Text>
+            </View>
+            
+            <View style={styles.dividerLine} />
+
+            <View style={styles.statItem}>
+              <View style={[styles.iconCircle, { backgroundColor: '#E4F9E9' }]}>
+                <Ionicons name="library" size={18} color="#34C759" />
+              </View>
+              <Text style={styles.statNumber}>{totalClasses}</Text>
+              <Text style={styles.statLabel}>Classes</Text>
+            </View>
+
+            <View style={styles.dividerLine} />
+
+            <View style={styles.statItem}>
+              <View style={[styles.iconCircle, { backgroundColor: '#F4E8FF' }]}>
+                <Ionicons name="checkmark-done-circle" size={18} color="#AF52DE" />
+              </View>
+              <Text style={styles.statNumber}>{myRecentLogs}</Text>
+              <Text style={styles.statLabel}>Logs</Text>
+            </View>
           </View>
         </View>
 
-        {/* UPDATED QUICK ACTIONS GRID */}
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionGrid}>
-          {/* Primary Action */}
-          <TouchableOpacity style={[styles.actionButton, styles.primaryAction]} onPress={() => router.push('/(tabs)/attendance')}>
-            <Ionicons name="calendar" size={32} color="#FFFFFF" />
-            <Text style={styles.actionTextPrimary}>Take Attendance</Text>
+        {/* 🚀 STRUCTURE PANEL 3: THE HIGH-PRIORITY BALANCED NAVIGATION BLOCK */}
+        <Text style={styles.sectionTitle}>Main Workspace Actions</Text>
+        
+        {/* Row 1: Split-Action Layout */}
+        <View style={styles.actionRowGrid}>
+          <TouchableOpacity style={[styles.gridBlockAction, { borderLeftColor: '#007AFF' }]} onPress={() => router.push('/(tabs)/attendance')}>
+            <View style={[styles.actionIconBadge, { backgroundColor: '#E0F0FF' }]}>
+              <Ionicons name="calendar" size={20} color="#007AFF" />
+            </View>
+            <Text style={styles.gridActionTitle}>Take Attendance</Text>
+            <Text style={styles.gridActionDesc}>Submit today's roll call</Text>
           </TouchableOpacity>
 
-          {/* Secondary Actions Column */}
-          <View style={styles.secondaryActionsColumn}>
-            <TouchableOpacity style={styles.secondaryAction} onPress={() => router.push('/(tabs)/history')}>
-              <Ionicons name="time" size={20} color="#007AFF" />
-              <Text style={styles.secondaryActionText}>History</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.secondaryAction} onPress={() => router.push('/(tabs)/analytics')}>
+          <TouchableOpacity style={[styles.gridBlockAction, { borderLeftColor: '#FF9500' }]} onPress={() => router.push('/(tabs)/analytics')}>
+            <View style={[styles.actionIconBadge, { backgroundColor: '#FFF2E0' }]}>
               <Ionicons name="pie-chart" size={20} color="#FF9500" />
-              <Text style={styles.secondaryActionText}>Analytics</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.secondaryAction} onPress={() => router.push('/(tabs)/profile')}>
-              <Ionicons name="person-add" size={20} color="#AF52DE" />
-              <Text style={styles.secondaryActionText}>Students</Text>
-            </TouchableOpacity>
-          </View>
+            </View>
+            <Text style={styles.gridActionTitle}>Analytics Engine</Text>
+            <Text style={styles.gridActionDesc}>Check user percentages</Text>
+          </TouchableOpacity>
         </View>
 
+        {/* Row 2: Split-Action Layout */}
+        <View style={styles.actionRowGrid}>
+          <TouchableOpacity style={[styles.gridBlockAction, { borderLeftColor: '#34C759' }]} onPress={() => router.push('/(tabs)/history')}>
+            <View style={[styles.actionIconBadge, { backgroundColor: '#E4F9E9' }]}>
+              <Ionicons name="time" size={20} color="#34C759" />
+            </View>
+            <Text style={styles.gridActionTitle}>Log History</Text>
+            <Text style={styles.gridActionDesc}>Review old database archives</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.gridBlockAction, { borderLeftColor: '#AF52DE' }]} onPress={() => router.push('/(tabs)/profile')}>
+            <View style={[styles.actionIconBadge, { backgroundColor: '#F4E8FF' }]}>
+              <Ionicons name="person-add" size={20} color="#AF52DE" />
+            </View>
+            <Text style={styles.gridActionTitle}>Roster Import</Text>
+            <Text style={styles.gridActionDesc}>Excel upload or session settings</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ℹ️ STRUCTURE PANEL 4: STATUS FOOTER CONTAINER */}
         <View style={styles.recentActivityBox}>
-          <Ionicons name="information-circle-outline" size={18} color="#8E8E93" style={{ marginRight: 8, marginTop: 1 }} />
+          <Ionicons name="shield-checkmark-outline" size={16} color="#34C759" style={{ marginRight: 8, marginTop: 1 }} />
           <Text style={styles.activityText}>All systems operational. Ensure all logs are submitted daily.</Text>
         </View>
 
@@ -105,29 +151,41 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F2F2F7' },
-  container: { padding: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, marginTop: 10 },
-  greetingTextContainer: { flex: 1 },
-  greetingTitle: { fontSize: 28, fontWeight: '800', color: '#1C1C1E', letterSpacing: -0.5, marginTop: 2 },
-  greetingSubtitle: { fontSize: 13, color: '#8E8E93', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  departmentBadge: { backgroundColor: '#E0F0FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, marginTop: 6, alignSelf: 'flex-start' },
-  departmentBadgeText: { color: '#007AFF', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
-  avatarCircle: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#1C1C1E', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3 },
-  avatarText: { color: '#FFF', fontWeight: '800', fontSize: 14, letterSpacing: 0.5 },
-  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 28 },
-  statCard: { flex: 1, padding: 16, borderRadius: 16, marginHorizontal: 4, alignItems: 'center', borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 2, elevation: 1 },
-  statNumber: { fontSize: 22, fontWeight: '800', marginTop: 8 },
-  statLabel: { fontSize: 12, color: '#666', fontWeight: '600', marginTop: 2 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1C1C1E', marginBottom: 14, letterSpacing: -0.2 },
-  actionGrid: { flexDirection: 'row', height: 190, marginBottom: 20 },
-  actionButton: { borderRadius: 20, padding: 20, justifyContent: 'space-between' },
-  primaryAction: { flex: 1, backgroundColor: '#007AFF', borderRadius: 20, padding: 20, justifyContent: 'flex-end', marginRight: 12, shadowColor: '#007AFF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 4 },
-  actionTextPrimary: { color: '#FFF', fontSize: 19, fontWeight: '800', marginTop: 12, lineHeight: 24, letterSpacing: -0.3 },
-  secondaryActionsColumn: { flex: 1, gap: 8 },
-  secondaryAction: { flex: 1, backgroundColor: '#FFF', borderRadius: 14, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, borderWidth: 1, borderColor: '#E5E5EA', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 2, elevation: 1 },
-  secondaryActionText: { fontWeight: '700', fontSize: 14, color: '#1C1C1E', marginLeft: 2 },
-  recentActivityBox: { backgroundColor: '#FFF', padding: 16, borderRadius: 16, flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1, borderColor: '#E5E5EA' },
-  activityText: { color: '#666', fontSize: 13, fontWeight: '500', flex: 1, lineHeight: 18 },
+  container: { padding: 16 },
+  
+  // Panel 1: Profile Structural Cards
+  profileHeroSection: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 20, borderRadius: 20, marginBottom: 16, borderWidth: 1, borderColor: '#E5E5EA', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
+  heroLeft: { flex: 1 },
+  greetingSubtitle: { fontSize: 12, color: '#8E8E93', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
+  greetingTitle: { fontSize: 24, fontWeight: '800', color: '#1C1C1E', letterSpacing: -0.5, marginTop: 2 },
+  departmentBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F2F2F7', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, marginTop: 8, alignSelf: 'flex-start' },
+  departmentBadgeText: { color: '#48484A', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
+  avatarCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#1C1C1E', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 2 },
+  avatarText: { color: '#FFF', fontWeight: '800', fontSize: 14 },
+
+  // Panel 2: Integrated Metric Cards Block
+  metricsWrapperCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#E5E5EA', marginBottom: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 3, elevation: 1 },
+  cardHeaderLabel: { fontSize: 10, color: '#8E8E93', fontWeight: '700', letterSpacing: 1, marginBottom: 14, textAlign: 'center' },
+  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statItem: { flex: 1, alignItems: 'center' },
+  iconCircle: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
+  statNumber: { fontSize: 20, fontWeight: '800', color: '#1C1C1E' },
+  statLabel: { fontSize: 11, color: '#8E8E93', fontWeight: '600', marginTop: 2 },
+  dividerLine: { width: 1, height: 40, backgroundColor: '#E5E5EA' },
+
+  // Panel 3: Balanced 2x2 Grid Blocks
+  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#636366', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12, paddingLeft: 4 },
+  actionRowGrid: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  gridBlockAction: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderLeftWidth: 4, borderWidth: 1, borderColor: '#E5E5EA', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 2, elevation: 1 },
+  actionIconBadge: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  gridActionTitle: { fontSize: 15, fontWeight: '700', color: '#1C1C1E' },
+  gridActionDesc: { fontSize: 11, color: '#8E8E93', marginTop: 3, fontWeight: '500', lineHeight: 14 },
+
+  // Panel 4: Footer Activity Info Block
+  recentActivityBox: { backgroundColor: '#FFF', padding: 14, borderRadius: 14, flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1, borderColor: '#E5E5EA', marginTop: 6 },
+  activityText: { color: '#666', fontSize: 12, fontWeight: '500', flex: 1, lineHeight: 16 },
+
+  // System Fallback Layout Styles
   fallbackContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F2F2F7', padding: 20 },
   fallbackText: { marginBottom: 20, fontSize: 16, fontWeight: '600', color: '#8E8E93' },
   loginBtn: { backgroundColor: '#007AFF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },

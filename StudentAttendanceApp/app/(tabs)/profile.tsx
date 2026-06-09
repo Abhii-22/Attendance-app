@@ -4,7 +4,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useAppGlobalState, API_BASE_URL } from '../AppContext';
 import { Ionicons } from '@expo/vector-icons';
 import * as XLSX from 'xlsx';
-// ✅ IMPORT THE ROUTER CONTEXT FOR CLEAN IMPERATIVE JUMPS
 import { router } from 'expo-router';
 
 export default function StudentImportScreen() {
@@ -20,7 +19,7 @@ export default function StudentImportScreen() {
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
-  // ✅ SAFELY REDIRECTS FIRST, THEN CLEARS CONTEXT
+  // HANDLES LOGOUT FLOW SAFELY USING EXISTING STATE MUTATORS
   const handleLogout = () => {
     Alert.alert(
       "Logout",
@@ -31,10 +30,7 @@ export default function StudentImportScreen() {
           text: "Log Out", 
           style: "destructive", 
           onPress: () => {
-            // 1. Kick the user out to the login screen first while the tabs are still mounted
             router.replace('/login');
-            
-            // 2. Clear state inside the next micro-task loop to prevent Fabric renderer crashes
             setTimeout(() => {
               if (typeof setCurrentTeacher === 'function') {
                 setCurrentTeacher(null);
@@ -135,8 +131,16 @@ export default function StudentImportScreen() {
     setIsUploading(true);
 
     try {
+      const verifiedTeacherId = currentTeacher ? ('id' in currentTeacher ? currentTeacher.id : (currentTeacher as any)._id) : '';
       const standardizedSection = selectedSection.toString().trim().toUpperCase().replace(/\s+/g, '');
+      
+      // ✅ EXTRACT EMPLOYEE ID FALLBACK: Uses employeeId field, or falls back to a clean string
+      const cleanEmpId = currentTeacher && (currentTeacher as any).employeeId 
+        ? (currentTeacher as any).employeeId.toString().trim().replace(/\s+/g, '') 
+        : 'FACULTY';
 
+      // ✅ EMPLOYEE ID DUPLICATE BYPASS:
+      // Formats the hidden string as: "1-ME-EMP101" instead of using the raw database object string ID
       const formattedStudents = parsedData.map((row: any) => {
         const rawName = row.Name || row.name || row["Student Name"] || row["Name "];
         const rawRoll = row.RollNumber || row.rollNumber || row["Roll Number"] || row.Roll_Number;
@@ -144,11 +148,11 @@ export default function StudentImportScreen() {
         if (!rawName || !rawRoll) return null;
 
         const cleanRoll = rawRoll.toString().trim();
-        const suffix = `-${standardizedSection}`;
+        const dynamicSuffix = `-${standardizedSection}-${cleanEmpId}`;
         
         return {
           name: rawName.toString().trim(),
-          rollNumber: cleanRoll.endsWith(suffix) ? cleanRoll : `${cleanRoll}${suffix}`
+          rollNumber: cleanRoll.endsWith(dynamicSuffix) ? cleanRoll : `${cleanRoll}${dynamicSuffix}`
         };
       }).filter(Boolean);
 
@@ -157,8 +161,6 @@ export default function StudentImportScreen() {
         setIsUploading(false);
         return;
       }
-
-      const verifiedTeacherId = currentTeacher ? ('id' in currentTeacher ? currentTeacher.id : (currentTeacher as any)._id) : '';
 
       const response = await fetch(`${API_BASE_URL}/admin/students/import`, {
         method: 'POST',
@@ -190,7 +192,6 @@ export default function StudentImportScreen() {
     }
   };
 
-  // Safe Fallback
   if (!currentTeacher) {
     return (
       <SafeAreaView style={styles.safeArea}>

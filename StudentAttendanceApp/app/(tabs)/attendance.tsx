@@ -3,7 +3,6 @@ import { StyleSheet, Text, View, FlatList, TouchableOpacity, ScrollView, Alert, 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useAppGlobalState, API_BASE_URL } from '../AppContext'; 
 import { Ionicons } from '@expo/vector-icons';
-// ✅ IMPORT useFocusEffect TO ENABLE AUTO-RELOAD
 import { useFocusEffect } from '@react-navigation/native';
 
 interface Student {
@@ -37,10 +36,8 @@ export default function AttendanceScreen() {
     ); 
   }
 
-  // TYPE-SAFE TEACHER ID EXTRACTOR
   const activeTeacherId = currentTeacher.id || (currentTeacher as any)._id;
 
-  // FETCH DYNAMIC ROSTERS FROM MONGO DB DIRECTLY
   const fetchDatabaseRosters = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/students/teacher/${activeTeacherId}`);
@@ -71,8 +68,6 @@ export default function AttendanceScreen() {
     }
   };
 
-  // ✅ AUTO-RELOAD INSTANT FIX:
-  // This hook auto-runs fetchDatabaseRosters every single time the user switches onto this tab panel.
   useFocusEffect(
     useCallback(() => {
       fetchDatabaseRosters();
@@ -89,7 +84,6 @@ export default function AttendanceScreen() {
     if (date) setSelectedDate(date); 
   };
 
-  // TOGGLE SINGLE ATTENDANCE STATUS
   const toggleAttendanceStatus = (studentId: string, status: 'Present' | 'Absent') => {
     setAttendanceStatus(prev => ({
       ...prev,
@@ -97,7 +91,6 @@ export default function AttendanceScreen() {
     }));
   };
 
-  // DISPATCH IMMUTABLE ATTENDANCE LOG PAYLOADS TO HISTORY & ANALYTICS
   const handleFinalSubmit = async () => {
     if (!selectedClass) {
       Alert.alert("Omission", "Please select an active target class folder section chip.");
@@ -231,11 +224,16 @@ export default function AttendanceScreen() {
               const uniqueStudentId = item._id || item.id || `fallback_${index}`; 
               const currentMarkedStatus = attendanceStatus[uniqueStudentId] || 'Present';
 
+              // ✅ VISUAL CLEAN DISPLAY UPGRADE: Isolates clean number "1" out of compound strings
+              const cleanDisplayRollNumber = item.rollNumber && item.rollNumber.includes('-') 
+                ? item.rollNumber.split('-')[0] 
+                : item.rollNumber;
+
               return (
                 <View style={styles.studentCard}> 
                   <View style={styles.studentDetails}> 
                     <Text style={styles.studentName}>{item.name}</Text> 
-                    <Text style={styles.rollText}>Roll No: {item.rollNumber}</Text>
+                    <Text style={styles.rollText}>Roll No: {cleanDisplayRollNumber}</Text>
                   </View>
 
                   <View style={styles.actionButtons}> 

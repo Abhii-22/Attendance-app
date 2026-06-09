@@ -1,28 +1,21 @@
 import React, { useState, useMemo } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity } from 'react-native';
 import { useAppGlobalState } from '../AppContext';
-// ✅ Added the DatePicker import
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 export default function HistoryScreen() {
   const { historyLogs, currentTeacher } = useAppGlobalState();
-  
-  // Track expanded log card IDs in local screen memory
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
-
-  // ✅ Added Date Filter States
   const [filterDate, setFilterDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
 
   if (!currentTeacher) return <View style={styles.center}><Text>Access Denied.</Text></View>;
 
-  // Toggle function safely handles undefined IDs just in case MongoDB is slow
   const toggleCardExpansion = (id?: string) => {
     if (!id) return;
     setExpandedLogId(prevId => (prevId === id ? null : id));
   };
 
-  // ✅ Handle Date Picked
   const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
     setShowDatePicker(false);
     if (date) {
@@ -30,7 +23,6 @@ export default function HistoryScreen() {
     }
   };
 
-  // ✅ Filter logs dynamically to only display records matching the selected date
   const filteredHistoryLogs = useMemo(() => {
     if (!filterDate) return historyLogs;
 
@@ -46,8 +38,6 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
-      
-      {/* ✅ Date Filtering Header Wrapper (Uses your existing styles) */}
       <View style={[styles.cardHeader, { borderBottomWidth: 0, marginBottom: 4 }]}>
         <TouchableOpacity 
           style={styles.classBadge} 
@@ -79,7 +69,6 @@ export default function HistoryScreen() {
       )}
 
       <FlatList
-        // ✅ Feeds the dynamically filtered array into your identical layout view
         data={filteredHistoryLogs} 
         keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.listContainer}
@@ -90,13 +79,11 @@ export default function HistoryScreen() {
           </View>
         }
         renderItem={({ item }) => {
-          // Identify the unique DB key for this specific log
           const logUniqueId = item._id || item.id;
           const isExpanded = expandedLogId === logUniqueId;
 
           return (
             <View style={styles.historyCard}>
-              {/* Clickable Header Area to expand/collapse card details */}
               <TouchableOpacity onPress={() => toggleCardExpansion(logUniqueId)} activeOpacity={0.7}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.classBadge}>{item.className}</Text>
@@ -110,22 +97,24 @@ export default function HistoryScreen() {
                 </View>
               </TouchableOpacity>
 
-              {/* READ-ONLY STUDENT ROSTER DETAIL LIST SNAPSHOT DISPLAY PANEL */}
               {isExpanded && (
                 <View style={styles.rosterExpansionPanel}>
                   <Text style={styles.panelTitle}> Roster Snapshot (Database Record)</Text>
                   {item.studentsSnapshot.map((student, index) => {
                     const isPresent = student.status === 'Present';
-                    // Guarantee a unique key even for embedded sub-documents
                     const studentKey = student._id || student.id || `snap_${index}`;
                     
+                    // ✅ MASK IN PROGRESS FOR RETROACTIVE SEARCH STRINGS
+                    const cleanDisplayRollNumber = student.rollNumber && student.rollNumber.includes('-') 
+                      ? student.rollNumber.split('-')[0] 
+                      : student.rollNumber;
+
                     return (
                       <View key={studentKey} style={styles.studentRowSnapshot}>
                         <View style={styles.studentMeta}>
                           <Text style={styles.studentNameText}>{student.name}</Text>
-                          <Text style={styles.studentRollText}>{student.rollNumber}</Text>
+                          <Text style={styles.studentRollText}>{cleanDisplayRollNumber}</Text>
                         </View>
-                        {/* Static non-interactive display badges */}
                         <View style={[styles.staticBadge, isPresent ? styles.badgePresent : styles.badgeAbsent]}>
                           <Text style={[styles.badgeText, isPresent ? styles.textPresent : styles.textAbsent]}>
                             {student.status.toUpperCase()}

@@ -1,11 +1,9 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { StyleSheet, Text, View, TextInput, FlatList, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useAppGlobalState } from '../AppContext';
-// ✅ IMPORT useFocusEffect TO FORCE IMMEDIATE ON-THE-FLY MATH RE-CALCULATIONS
 import { useFocusEffect } from '@react-navigation/native';
 
 export default function AnalyticsScreen() {
-  // ✅ Extract refreshStudentsList alongside history fetchers to ensure full cross-teacher data isolation resets instantly
   const { allStudentsData, historyLogs, currentTeacher, fetchHistoryLogsFromDatabase, refreshStudentsList } = useAppGlobalState();
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,9 +20,6 @@ export default function AnalyticsScreen() {
 
   const activeTeacherId = currentTeacher.id || (currentTeacher as any)._id;
 
-  // ✅ INSTANT REFRESH FIX: 
-  // Runs every single time you tap the Analytics tab. It re-pulls the latest logs 
-  // AND refreshes the student roster list so the calculations are NEVER out of date!
   useFocusEffect(
     useCallback(() => {
       let isMounted = true;
@@ -33,13 +28,9 @@ export default function AnalyticsScreen() {
         if (!activeTeacherId) return;
         try {
           if (isMounted) setLoading(true);
-          
-          // 1. Force context to pull down latest attendance history logs from MongoDB
           if (typeof fetchHistoryLogsFromDatabase === 'function') {
             await fetchHistoryLogsFromDatabase(activeTeacherId);
           }
-          
-          // 2. Force context to sync current active student snapshots for this teacher identity
           if (typeof refreshStudentsList === 'function') {
             await refreshStudentsList();
           }
@@ -58,7 +49,6 @@ export default function AnalyticsScreen() {
     }, [currentTeacher])
   );
 
-  // 1. Flatten all students into a single array for easier list filtering
   const allStudentsList = useMemo(() => {
     const list: any[] = [];
     Object.keys(allStudentsData).forEach((className) => {
@@ -71,13 +61,11 @@ export default function AnalyticsScreen() {
     return list;
   }, [allStudentsData]);
 
-  // 2. Filter students dynamically based on search query matching name or roll number
   const filteredStudents = allStudentsList.filter(student => 
     student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     student.rollNumber.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // 3. Robust Analytics Calculation Engine
   const getStudentStats = (studentId: string, rollNumber: string) => {
     let presentCount = 0;
     let totalClasses = 0;
@@ -149,12 +137,17 @@ export default function AnalyticsScreen() {
             
             let color = stats.percentage < 60 ? '#FF3B30' : stats.percentage < 75 ? '#FF9500' : '#34C759';
 
+            // ✅ DISPLAY MASK FOR SYSTEM SUFFIX CHECKS
+            const displayRoll = item.rollNumber && item.rollNumber.includes('-')
+              ? item.rollNumber.split('-')[0]
+              : item.rollNumber;
+
             return (
               <View style={styles.statCard}>
                 <View style={styles.cardRow}>
                   <View style={styles.cardInfoCol}>
                     <Text style={styles.name}>{item.name}</Text>
-                    <Text style={styles.details}>{item.rollNumber} • {item.className.toUpperCase()}</Text>
+                    <Text style={styles.details}>{displayRoll} • {item.className.toUpperCase()}</Text>
                   </View>
                   <View style={styles.cardStatsCol}>
                     <Text style={[styles.percent, { color }]}>{stats.percentage}%</Text>

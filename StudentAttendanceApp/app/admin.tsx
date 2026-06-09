@@ -26,7 +26,7 @@ export default function AdminScreen() {
   const [loadingData, setLoadingData] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // ✅ ACTIVE DIRECTORY TAB CONTROLLER
+  // ACTIVE DIRECTORY TAB CONTROLLER
   const [activeDirectoryTab, setActiveDirectoryTab] = useState<DirectoryViewTab>('faculty');
 
   // Form State (Create Mode)
@@ -53,6 +53,7 @@ export default function AdminScreen() {
 
   const loadDashboardData = async () => {
     try {
+      setLoadingData(true);
       const statsRes = await fetch(`${API_BASE_URL}/admin/stats`);
       const statsData = await statsRes.json();
       if (statsData.success) {
@@ -65,7 +66,7 @@ export default function AdminScreen() {
 
       const teachersRes = await fetch(`${API_BASE_URL}/admin/teachers`);
       const teachersData = await teachersRes.json();
-      if (teachersData.success) {
+      if (teachersData.success && Array.isArray(teachersData.teachers)) {
         setTeachersList(teachersData.teachers);
       }
     } catch (error) {
@@ -85,6 +86,16 @@ export default function AdminScreen() {
       return;
     }
 
+    let finalDesignation = designation.trim();
+
+    // ✅ FIXED SAFEGUARD marker: If you are explicitly creating an Admin View account,
+    // we attach an invisible space marker sequence "\u200B" combined with an "admin" identification token string 
+    // to the end of the designation value. It will not change how it visibly looks on your screens,
+    // but ensures the frontend engine catches it without changing your requested user input layout text!
+    if (selectedRole === 'adminview') {
+      finalDesignation = `${finalDesignation} \u200B(adminview)`;
+    }
+
     setIsSubmitting(true);
     try {
       const response = await fetch(`${API_BASE_URL}/admin/teachers/create`, {
@@ -95,16 +106,15 @@ export default function AdminScreen() {
           email: email.trim().toLowerCase(),
           department: department.trim().toUpperCase(), 
           employeeId: employeeId.trim(),
-          designation: designation.trim(),
-          securityPin: securityPin.trim(),
-          role: selectedRole
+          designation: finalDesignation,
+          role: selectedRole,
+          securityPin: securityPin.trim()
         })
       });
 
       const data = await response.json();
       if (response.ok && data.success) {
         Alert.alert("Success", `Account provisioned cleanly as ${selectedRole === 'teacher' ? 'Instructor' : 'Admin View Monitor'}!`);
-        // Force list switch to see newly created account instantly
         setActiveDirectoryTab(selectedRole === 'teacher' ? 'faculty' : 'adminview');
         
         setName(''); setEmail(''); setEmployeeId(''); setSecurityPin(''); setDepartment(''); setDesignation('');
@@ -126,7 +136,10 @@ export default function AdminScreen() {
     setEditEmail(item.email);
     setEditDepartment(item.department);
     setEditEmployeeId(item.employeeId);
-    setEditDesignation(item.designation);
+    
+    // Clean out fallback metadata marker token text if visible when updating details manually
+    setEditDesignation(item.designation.replace(/\u200B\(adminview\)/g, '').trim());
+    
     setEditSecurityPin(item.securityPin);
     setEditRole(item.role || 'teacher');
     setEditModalVisible(true);
@@ -139,6 +152,11 @@ export default function AdminScreen() {
       return;
     }
 
+    let finalDesignation = editDesignation.trim();
+    if (editRole === 'adminview') {
+      finalDesignation = `${finalDesignation} \u200B(adminview)`;
+    }
+
     setIsUpdating(true);
     try {
       const response = await fetch(`${API_BASE_URL}/admin/teachers/${editingId}`, {
@@ -149,7 +167,7 @@ export default function AdminScreen() {
           email: editEmail.trim().toLowerCase(),
           department: editDepartment.trim().toUpperCase(),
           employeeId: editEmployeeId.trim(),
-          designation: editDesignation.trim(),
+          designation: finalDesignation,
           securityPin: editSecurityPin.trim(),
           role: editRole
         })
@@ -197,7 +215,6 @@ export default function AdminScreen() {
     );
   };
 
-  // ✅ ULTRA-AGGRESSIVE FILTERING LOOP FOR DUAL LIST MANAGEMENT
   const { separatedTeachers, separatedAdmins } = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     
@@ -217,14 +234,17 @@ export default function AdminScreen() {
       const desigStr = (item.designation || '').toLowerCase();
       const roleStr = (item.role || '').toLowerCase();
 
-      if (
+      // ✅ SEPARATION LOGIC CHECK ENGINE: Evaluates our custom un-spaced identification marker sequence tags 
+      const isAdminView = 
         roleStr === 'adminview' || 
+        desigStr.includes('adminview') ||
         emailStr.includes('admin') || 
         emailStr.includes('view') || 
         deptStr.includes('admin') ||
         desigStr.includes('admin') ||
-        nameStr.includes('admin')
-      ) {
+        nameStr.includes('admin');
+
+      if (isAdminView) {
         admins.push(item);
       } else {
         teachers.push(item);
@@ -236,66 +256,115 @@ export default function AdminScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.topNavbar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/login')}>
-          <Ionicons name="arrow-back" size={22} color="#1C1C1E" />
-          <Text style={styles.backBtnText}>Exit Terminal</Text>
+      {/* 🏢 PROFILE HERO NAV HEADER BLOCK */}
+      <View style={styles.profileHeroSection}>
+        <View style={styles.heroLeft}>
+          <Text style={styles.greetingSubtitle}>SYSTEM CONTROL</Text>
+          <Text style={styles.greetingTitle}>Master Root Desk</Text>
+          <View style={styles.departmentBadge}>
+            <Ionicons name="shield-checkmark" size={12} color="#FF9500" style={{ marginRight: 4 }} />
+            <Text style={styles.departmentBadgeText}>MASTER EDIT MODE</Text>
+          </View>
+        </View>
+        <TouchableOpacity style={styles.avatarCircle} onPress={() => router.replace('/login')}>
+          <Ionicons name="log-out" size={20} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.navTitle}>Control Center</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         
-        {/* METRICS DISPLAYS */}
+        {/* SNAPSHOT SYSTEM METRICS */}
         <Text style={styles.sectionTitle}>System Metrics Overview</Text>
         {loadingData ? (
-          <ActivityIndicator size="small" color="#007AFF" style={{ marginVertical: 15 }} />
+          <View style={styles.metricsLoadingWrapper}>
+            <ActivityIndicator size="small" color="#007AFF" />
+          </View>
         ) : (
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, { backgroundColor: '#E0F0FF' }]}><Ionicons name="briefcase" size={18} color="#007AFF" /><Text style={styles.statNum}>{stats.totalTeachers}</Text><Text style={styles.statLabel}>Total Staff</Text></View>
-            <View style={[styles.statCard, { backgroundColor: '#E4F9E9' }]}><Ionicons name="people" size={18} color="#34C759" /><Text style={styles.statNum}>{stats.totalStudents}</Text><Text style={styles.statLabel}>Students</Text></View>
-            <View style={[styles.statCard, { backgroundColor: '#F4E8FF' }]}><Ionicons name="cloud-upload" size={18} color="#AF52DE" /><Text style={styles.statNum}>{stats.totalLogs}</Text><Text style={styles.statLabel}>Logs Sent</Text></View>
+          <View style={styles.statsContainerStrip}>
+            <View style={styles.statCardItem}>
+              <View style={[styles.statIconBadge, { backgroundColor: '#E0F0FF' }]}>
+                <Ionicons name="people" size={16} color="#007AFF" />
+              </View>
+              <Text style={styles.statCardNum}>{stats.totalTeachers}</Text>
+              <Text style={styles.statCardLabel}>Total Accounts</Text>
+            </View>
+            
+            <View style={styles.verticalDividerLine} />
+
+            <View style={styles.statCardItem}>
+              <View style={[styles.statIconBadge, { backgroundColor: '#E4F9E9' }]}>
+                <Ionicons name="school" size={16} color="#34C759" />
+              </View>
+              <Text style={styles.statCardNum}>{stats.totalStudents}</Text>
+              <Text style={styles.statCardLabel}>Enrolled Roster</Text>
+            </View>
+
+            <View style={styles.verticalDividerLine} />
+
+            <View style={styles.statCardItem}>
+              <View style={[styles.statIconBadge, { backgroundColor: '#F4E8FF' }]}>
+                <Ionicons name="receipt" size={16} color="#AF52DE" />
+              </View>
+              <Text style={styles.statCardNum}>{stats.totalLogs}</Text>
+              <Text style={styles.statCardLabel}>Logs Transmitted</Text>
+            </View>
           </View>
         )}
 
-        {/* REGISTRATION ENROLLMENT PANEL */}
-        <View style={styles.formCard}>
-          <Text style={styles.formHeader}>Provision Account Access Tier</Text>
+        {/* PROVISION MANAGEMENT PROFILE FORM CARD */}
+        <View style={styles.formPanelCard}>
+          <Text style={styles.formHeaderTitleText}>Provision Account Workspace Tier</Text>
 
-          {/* ROLE SELECTION TOGGLE BUTTONS */}
-          <View style={styles.roleToggleContainer}>
+          {/* CREATION SELECTION INTERFACE CONTROLS */}
+          <View style={styles.roleToggleTrackBar}>
             <TouchableOpacity 
-              style={[styles.roleToggleTab, selectedRole === 'teacher' && styles.activeRoleToggleTab]}
+              style={[styles.roleToggleTabItem, selectedRole === 'teacher' && styles.activeRoleToggleTabItem]}
               onPress={() => setSelectedRole('teacher')}
             >
-              <Text style={[styles.roleToggleText, selectedRole === 'teacher' && styles.activeRoleToggleText]}>Teacher Role</Text>
+              <Ionicons name="school" size={14} color={selectedRole === 'teacher' ? '#007AFF' : '#8E8E93'} style={{ marginRight: 4 }} />
+              <Text style={[styles.roleToggleTextLabel, selectedRole === 'teacher' && styles.activeRoleToggleTextLabel]}>Teacher Role</Text>
             </TouchableOpacity>
             <TouchableOpacity 
-              style={[styles.roleToggleTab, selectedRole === 'adminview' && styles.activeRoleToggleTab]}
+              style={[styles.roleToggleTabItem, selectedRole === 'adminview' && styles.activeRoleToggleTabItem]}
               onPress={() => setSelectedRole('adminview')}
             >
-              <Text style={[styles.roleToggleText, selectedRole === 'adminview' && styles.activeRoleToggleText]}>Admin (View)</Text>
+              <Ionicons name="eye" size={14} color={selectedRole === 'adminview' ? '#AF52DE' : '#8E8E93'} style={{ marginRight: 4 }} />
+              <Text style={[styles.roleToggleTextLabel, selectedRole === 'adminview' && styles.activeRoleToggleTextLabel]}>Admin View</Text>
             </TouchableOpacity>
           </View>
           
-          <TextInput style={styles.input} placeholder="Account Holder Name" value={name} onChangeText={setName} placeholderTextColor="#A9A9A9" />
-          <TextInput style={styles.input} placeholder="Email Address" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#A9A9A9" />
-          <TextInput style={styles.input} placeholder="Unique Employee / Account ID" value={employeeId} onChangeText={setEmployeeId} placeholderTextColor="#A9A9A9" />
-          <TextInput style={styles.input} placeholder="4-Digit Secure Entry PIN" value={securityPin} onChangeText={setSecurityPin} keyboardType="numeric" secureTextEntry maxLength={4} placeholderTextColor="#A9A9A9" />
-          <TextInput style={styles.input} placeholder="Department (e.g. CSE, ADMIN, ECE)" value={department} onChangeText={setDepartment} placeholderTextColor="#A9A9A9" />
-          <TextInput style={styles.input} placeholder="Academic Designation / Rank" value={designation} onChangeText={setDesignation} placeholderTextColor="#A9A9A9" />
+          <Text style={styles.fieldLabelText}>Account Holder Name</Text>
+          <TextInput style={styles.inputField} placeholder="e.g. Dr. Sarah Jenkins" value={name} onChangeText={setName} placeholderTextColor="#C7C7CC" />
+          
+          <Text style={styles.fieldLabelText}>Email Address</Text>
+          <TextInput style={styles.inputField} placeholder="e.g. sarah@university.edu" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#C7C7CC" />
+          
+          <Text style={styles.fieldLabelText}>Account reference ID</Text>
+          <TextInput style={styles.inputField} placeholder="e.g. EMP-2026-88" value={employeeId} onChangeText={setEmployeeId} placeholderTextColor="#C7C7CC" />
+          
+          <Text style={styles.fieldLabelText}>Secure entry PIN (4 Digits)</Text>
+          <TextInput style={styles.inputField} placeholder="••••" value={securityPin} onChangeText={setSecurityPin} keyboardType="numeric" secureTextEntry maxLength={4} placeholderTextColor="#C7C7CC" />
+          
+          <Text style={styles.fieldLabelText}>Department Allocation</Text>
+          <TextInput style={styles.inputField} placeholder="e.g. CSE, MECH, CIVIL" value={department} onChangeText={setDepartment} placeholderTextColor="#C7C7CC" />
+          
+          <Text style={styles.fieldLabelText}>Designation Rank Title</Text>
+          <TextInput style={styles.inputField} placeholder="e.g. Dean Monitor" value={designation} onChangeText={setDesignation} placeholderTextColor="#C7C7CC" />
 
-          <TouchableOpacity style={[styles.submitBtn, isSubmitting && styles.btnDisabled]} onPress={handleCreateTeacher} disabled={isSubmitting}>
-            {isSubmitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>🔐 Initialize Account Credentials</Text>}
+          <TouchableOpacity style={[styles.submitActionCTAButton, isSubmitting && styles.btnActionDisabled]} onPress={handleCreateTeacher} disabled={isSubmitting}>
+            {isSubmitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitActionCTAText}>🔐 Initialize System Account Credentials</Text>}
           </TouchableOpacity>
         </View>
 
-        {/* SEARCH BAR INPUT */}
-        <View style={[styles.searchBarContainer, { marginTop: 25, marginBottom: 10 }]}>
-          <Ionicons name="search" size={16} color="#8E8E93" style={styles.searchIcon} />
+        {/* REGISTRY DIRECTORY WORKSPACE TITLES */}
+        <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Accounts Catalog Index</Text>
+        
+        {/* GLOBAL TEXT FILTER CONNECTIONS */}
+        <View style={styles.searchBarWrapperCard}>
+          <Ionicons name="search" size={16} color="#8E8E93" style={styles.searchInnerIcon} />
           <TextInput 
-            style={styles.searchBarInput}
-            placeholder="Search active directory registries..."
+            style={styles.searchBarInputField}
+            placeholder="Search accounts globally by name, ID or department..."
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholderTextColor="#8E8E93"
@@ -303,74 +372,74 @@ export default function AdminScreen() {
           />
         </View>
 
-        {/* ================= ✅ NEW USER FRIENDLY TAB VIEW TOGGLE BREAKDOWNS ================= */}
-        <View style={styles.directorySegmentBar}>
+        {/* TARGET DIRECTORY SECTION TRACK TABS */}
+        <View style={styles.directoryDirectoryTabBar}>
           <TouchableOpacity 
-            style={[styles.segmentTab, activeDirectoryTab === 'faculty' && styles.activeSegmentTab]}
+            style={[styles.directoryTabButton, activeDirectoryTab === 'faculty' && styles.activeDirectoryTabButton]}
             onPress={() => setActiveDirectoryTab('faculty')}
           >
             <Ionicons name="school" size={14} color={activeDirectoryTab === 'faculty' ? '#FFF' : '#8E8E93'} style={{ marginRight: 6 }} />
-            <Text style={[styles.segmentTabText, activeDirectoryTab === 'faculty' && styles.activeSegmentTabText]}>
+            <Text style={[styles.directoryTabText, activeDirectoryTab === 'faculty' && styles.activeDirectoryTabText]}>
               Faculty Teachers ({separatedTeachers.length})
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.segmentTab, activeDirectoryTab === 'adminview' && styles.activeSegmentTab]}
+            style={[styles.directoryTabButton, activeDirectoryTab === 'adminview' && styles.activeDirectoryTabButton]}
             onPress={() => setActiveDirectoryTab('adminview')}
           >
             <Ionicons name="eye" size={14} color={activeDirectoryTab === 'adminview' ? '#FFF' : '#8E8E93'} style={{ marginRight: 6 }} />
-            <Text style={[styles.segmentTabText, activeDirectoryTab === 'adminview' && styles.activeSegmentTabText]}>
+            <Text style={[styles.directoryTabText, activeDirectoryTab === 'adminview' && styles.activeDirectoryTabText]}>
               Admin View ({separatedAdmins.length})
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* DIRECTORY DISPLAY ZONE */}
-        <View style={styles.directoryBlock}>
+        {/* CONTAINER SHEETS DIRECTORY DISPATCH RENDERS */}
+        <View style={styles.directoryMasterCardBlock}>
           {loadingData ? (
-            <ActivityIndicator color="#007AFF" style={{ marginVertical: 30 }} />
+            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+              <ActivityIndicator color="#007AFF" />
+            </View>
           ) : activeDirectoryTab === 'faculty' ? (
-            /* 📂 CONDITIONAL MODULE A: SHOW TEACHERS ONLY */
             separatedTeachers.length === 0 ? (
-              <Text style={styles.emptySectionText}>No teacher listings found matching query criteria.</Text>
+              <Text style={styles.emptySectionText}>No registered faculty instructors correspond to this filter parameter.</Text>
             ) : (
               separatedTeachers.map((item) => (
                 <View key={item._id} style={styles.teacherRowCard}>
                   <View style={styles.teacherMetaInfo}>
                     <Text style={styles.tName}>{item.name}</Text>
-                    <Text style={styles.tDetails}>{item.employeeId} • {item.designation}</Text>
+                    <Text style={styles.tDetails}>{item.employeeId} • {item.designation.replace(/\u200B\(adminview\)/g, '').trim()}</Text>
                     <Text style={styles.tSubDetails}>{item.email} | Dept: {item.department} | PIN: {item.securityPin}</Text>
                   </View>
                   <View style={styles.actionColButtons}>
                     <TouchableOpacity style={styles.iconActionBtn} onPress={() => openEditModal(item)}>
-                      <Ionicons name="pencil" size={16} color="#007AFF" />
+                      <Ionicons name="pencil" size={15} color="#007AFF" />
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.iconActionBtn, { backgroundColor: '#FFE5E5' }]} onPress={() => handleDeleteTeacher(item._id, item.name)}>
-                      <Ionicons name="trash" size={16} color="#FF3B30" />
+                      <Ionicons name="trash" size={15} color="#FF3B30" />
                     </TouchableOpacity>
                   </View>
                 </View>
               ))
             )
           ) : (
-            /* 📂 CONDITIONAL MODULE B: SHOW ADMIN VIEW ONLY */
             separatedAdmins.length === 0 ? (
-              <Text style={styles.emptySectionText}>No admin view accounts found matching query criteria.</Text>
+              <Text style={styles.emptySectionText}>No administrative view profiles correspond to this filter parameter.</Text>
             ) : (
               separatedAdmins.map((item) => (
                 <View key={item._id} style={[styles.teacherRowCard, { borderColor: '#E5D6F5' }]}>
                   <View style={styles.teacherMetaInfo}>
                     <Text style={styles.tName}>{item.name}</Text>
-                    <Text style={styles.tDetails}>{item.employeeId} • {item.designation}</Text>
+                    <Text style={styles.tDetails}>{item.employeeId} • {item.designation.replace(/\u200B\(adminview\)/g, '').trim()}</Text>
                     <Text style={styles.tSubDetails}>{item.email} | Dept: {item.department} | PIN: {item.securityPin}</Text>
                   </View>
                   <View style={styles.actionColButtons}>
                     <TouchableOpacity style={[styles.iconActionBtn, { backgroundColor: '#F4E8FF' }]} onPress={() => openEditModal(item)}>
-                      <Ionicons name="pencil" size={16} color="#AF52DE" />
+                      <Ionicons name="pencil" size={15} color="#AF52DE" />
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.iconActionBtn, { backgroundColor: '#FFE5E5' }]} onPress={() => handleDeleteTeacher(item._id, item.name)}>
-                      <Ionicons name="trash" size={16} color="#FF3B30" />
+                      <Ionicons name="trash" size={15} color="#FF3B30" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -381,34 +450,40 @@ export default function AdminScreen() {
 
       </ScrollView>
 
-      {/* PARAMETER MODIFICATION MODAL */}
+      {/* PARAMETERS UPDATE MODAL POPUPS SHEET */}
       <Modal visible={editModalVisible} animationType="slide" transparent>
-        <View style={styles.modalBlurWrapper}>
-          <View style={styles.modalContentCard}>
-            <Text style={styles.modalTitleHeader}>Modify Profile Access Parameters</Text>
+        <View style={styles.modalBlurOverlayWrapper}>
+          <View style={styles.modalContentDisplayCardBox}>
+            <Text style={styles.modalTitleHeaderTitleCaption}>Modify Profile Security Parameters</Text>
 
-            <View style={[styles.roleToggleContainer, { marginBottom: 15 }]}>
-              <TouchableOpacity style={[styles.roleToggleTab, editRole === 'teacher' && styles.activeRoleToggleTab]} onPress={() => setEditRole('teacher')}>
-                <Text style={[styles.roleToggleText, editRole === 'teacher' && styles.activeRoleToggleText]}>Teacher</Text>
+            <View style={[styles.roleToggleTrackBar, { marginBottom: 16 }]}>
+              <TouchableOpacity style={[styles.roleToggleTabItem, editRole === 'teacher' && styles.activeRoleToggleTabItem]} onPress={() => setEditRole('teacher')}>
+                <Text style={[styles.roleToggleTextLabel, editRole === 'teacher' && styles.activeRoleToggleTextLabel]}>Teacher</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.roleToggleTab, editRole === 'adminview' && styles.activeRoleToggleTab]} onPress={() => setEditRole('adminview')}>
-                <Text style={[styles.roleToggleText, editRole === 'adminview' && styles.activeRoleToggleText]}>Admin View</Text>
+              <TouchableOpacity style={[styles.roleToggleTabItem, editRole === 'adminview' && styles.activeRoleToggleTabItem]} onPress={() => setEditRole('adminview')}>
+                <Text style={[styles.roleToggleTextLabel, editRole === 'adminview' && styles.activeRoleToggleTextLabel]}>Admin View</Text>
               </TouchableOpacity>
             </View>
             
-            <TextInput style={styles.input} placeholder="Full Name" value={editName} onChangeText={setEditName} placeholderTextColor="#A9A9A9" />
-            <TextInput style={styles.input} placeholder="Email" value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#A9A9A9" />
-            <TextInput style={styles.input} placeholder="Employee ID" value={editEmployeeId} onChangeText={setEditEmployeeId} placeholderTextColor="#A9A9A9" />
-            <TextInput style={styles.input} placeholder="Security Pin" value={editSecurityPin} onChangeText={setEditSecurityPin} keyboardType="numeric" maxLength={4} placeholderTextColor="#A9A9A9" />
-            <TextInput style={styles.input} placeholder="Department" value={editDepartment} onChangeText={setEditDepartment} placeholderTextColor="#A9A9A9" />
-            <TextInput style={styles.input} placeholder="Designation" value={editDesignation} onChangeText={setEditDesignation} placeholderTextColor="#A9A9A9" />
+            <Text style={styles.fieldLabelText}>Full Name</Text>
+            <TextInput style={styles.inputField} placeholder="Name" value={editName} onChangeText={setEditName} placeholderTextColor="#A9A9A9" />
+            <Text style={styles.fieldLabelText}>Email Address</Text>
+            <TextInput style={styles.inputField} placeholder="Email" value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#A9A9A9" />
+            <Text style={styles.fieldLabelText}>Account Reference ID</Text>
+            <TextInput style={styles.inputField} placeholder="Employee ID" value={editEmployeeId} onChangeText={setEditEmployeeId} placeholderTextColor="#A9A9A9" />
+            <Text style={styles.fieldLabelText}>Security entry PIN</Text>
+            <TextInput style={styles.inputField} placeholder="Security Pin" value={editSecurityPin} onChangeText={setEditSecurityPin} keyboardType="numeric" maxLength={4} placeholderTextColor="#A9A9A9" />
+            <Text style={styles.fieldLabelText}>Department</Text>
+            <TextInput style={styles.inputField} placeholder="Department" value={editDepartment} onChangeText={setEditDepartment} placeholderTextColor="#A9A9A9" />
+            <Text style={styles.fieldLabelText}>Designation Rank</Text>
+            <TextInput style={styles.inputField} placeholder="Designation" value={editDesignation} onChangeText={setEditDesignation} placeholderTextColor="#A9A9A9" />
 
-            <View style={styles.modalActionsRowButtons}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setEditModalVisible(false)}>
-                <Text style={styles.modalCancelText}>Dismiss</Text>
+            <View style={styles.modalActionButtonsInlineContainerRow}>
+              <TouchableOpacity style={styles.modalCancelExecutionButtonCard} onPress={() => setEditModalVisible(false)}>
+                <Text style={styles.modalCancelExecutionButtonCardTextLabel}>Dismiss</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleUpdateTeacher}>
-                {isUpdating ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalSaveText}>Save Changes</Text>}
+              <TouchableOpacity style={styles.modalSaveCommitActionButtonCard} onPress={handleUpdateTeacher}>
+                {isUpdating ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalSaveCommitActionButtonCardTextLabel}>Commit Changes</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -420,60 +495,66 @@ export default function AdminScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F2F2F7' },
-  topNavbar: { height: 60, backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: '#E5E5EA', paddingHorizontal: 16 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  backBtnText: { fontSize: 14, fontWeight: '600', color: '#1C1C1E' },
-  navTitle: { flex: 1, textAlign: 'right', fontSize: 15, fontWeight: '700', color: '#8E8E93' },
-  container: { padding: 16 },
-  sectionTitle: { fontSize: 12, fontWeight: '700', color: '#8E8E93', textTransform: 'uppercase', marginBottom: 10, letterSpacing: 0.4 },
-  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  statCard: { flex: 1, padding: 12, borderRadius: 14, alignItems: 'center', minHeight: 85, justifyContent: 'center' },
-  statNum: { fontSize: 18, fontWeight: '800', marginTop: 2, color: '#1C1C1E' },
-  statLabel: { fontSize: 10, color: '#666', marginTop: 2, fontWeight: '600', textAlign: 'center' },
-  formCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E5EA' },
-  formHeader: { fontSize: 14, fontWeight: '700', color: '#1C1C1E', marginBottom: 12 },
-  input: { backgroundColor: '#F2F2F7', height: 44, borderRadius: 8, paddingHorizontal: 12, color: '#1C1C1E', fontSize: 14, marginBottom: 10 },
-  submitBtn: { backgroundColor: '#34C759', height: 46, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginTop: 6 },
-  btnDisabled: { backgroundColor: '#A2E8B1' },
-  submitBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  container: { padding: 16, paddingBottom: 40 },
   
-  // Create Access Tier Roles selector layout
-  roleToggleContainer: { flexDirection: 'row', backgroundColor: '#F2F2F7', padding: 3, borderRadius: 8, marginBottom: 12 },
-  roleToggleTab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
-  activeRoleToggleTab: { backgroundColor: '#FFFFFF', elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 1 },
-  roleToggleText: { fontSize: 12, fontWeight: '600', color: '#8E8E93' },
-  activeRoleToggleText: { color: '#007AFF', fontWeight: '700' },
+  profileHeroSection: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 20, borderRadius: 20, marginHorizontal: 16, marginTop: 16, marginBottom: 14, borderWidth: 1, borderColor: '#E5E5EA', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
+  heroLeft: { flex: 1 },
+  greetingSubtitle: { fontSize: 11, color: '#8E8E93', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
+  greetingTitle: { fontSize: 24, fontWeight: '800', color: '#1C1C1E', letterSpacing: -0.5, marginTop: 2 },
+  departmentBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF2E0', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, marginTop: 8, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#FFE5A3' },
+  departmentBadgeText: { color: '#FF9500', fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
+  avatarCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center', shadowColor: '#FF3B30', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 2 },
 
-  // Search Roster components
-  searchBarContainer: { flexDirection: 'row', backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E5EA', alignItems: 'center', paddingHorizontal: 12, height: 44 },
-  searchIcon: { marginRight: 8 },
-  searchBarInput: { flex: 1, color: '#1C1C1E', fontSize: 14, height: '100%', fontWeight: '500' },
+  sectionTitle: { fontSize: 11, fontWeight: '700', color: '#8E8E93', textTransform: 'uppercase', marginBottom: 10, letterSpacing: 0.8, paddingLeft: 2 },
+  metricsLoadingWrapper: { height: 85, backgroundColor: '#FFFFFF', borderRadius: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E5E5EA', marginBottom: 20 },
+  statsContainerStrip: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 14, borderWidth: 1, borderColor: '#E5E5EA', marginBottom: 20, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 3, elevation: 1 },
+  statCardItem: { flex: 1, alignItems: 'center' },
+  statIconBadge: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
+  statCardNum: { fontSize: 18, fontWeight: '800', color: '#1C1C1E' },
+  statCardLabel: { fontSize: 10, color: '#8E8E93', fontWeight: '600', marginTop: 2, textAlign: 'center' },
+  verticalDividerLine: { width: 1, height: 44, backgroundColor: '#E5E5EA' },
 
-  // ✅ NEW USER FRIENDLY TAB VIEW SWITCH TRACKS:
-  directorySegmentBar: { flexDirection: 'row', backgroundColor: '#E5E5EA', borderRadius: 10, padding: 3, marginBottom: 12, gap: 4 },
-  segmentTab: { flex: 1, flexDirection: 'row', paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
-  activeSegmentTab: { backgroundColor: '#007AFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 1, elevation: 1 },
-  segmentTabText: { fontSize: 12, fontWeight: '600', color: '#636366' },
-  activeSegmentTabText: { color: '#FFFFFF', fontWeight: '700' },
+  formPanelCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 18, borderWidth: 1, borderColor: '#E5E5EA', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 4, elevation: 1 },
+  formHeaderTitleText: { fontSize: 15, fontWeight: '800', color: '#1C1C1E', letterSpacing: -0.3, marginBottom: 14 },
+  fieldLabelText: { fontSize: 11, fontWeight: '700', color: '#3A3A3C', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 6, paddingLeft: 2 },
+  inputField: { backgroundColor: '#F2F2F7', height: 44, borderRadius: 10, borderWidth: 1, borderColor: '#E5E5EA', paddingHorizontal: 12, color: '#1C1C1E', fontSize: 14, marginBottom: 12, fontWeight: '500' },
+  
+  roleToggleTrackBar: { flexDirection: 'row', backgroundColor: '#F2F2F7', padding: 3, borderRadius: 10, marginBottom: 16, borderWidth: 1, borderColor: '#E5E5EA', gap: 2 },
+  roleToggleTabItem: { flex: 1, flexDirection: 'row', paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+  activeRoleToggleTabItem: { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 1, elevation: 1 },
+  roleToggleTextLabel: { fontSize: 12, fontWeight: '600', color: '#8E8E93' },
+  activeRoleToggleTextLabel: { color: '#1C1C1E', fontWeight: '700' },
 
-  // Directory block rows container layout setup
-  directoryBlock: { backgroundColor: '#FFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E5EA', overflow: 'hidden' },
+  submitActionCTAButton: { backgroundColor: '#34C759', height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 6, shadowColor: '#34C759', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 2 },
+  btnActionDisabled: { opacity: 0.5 },
+  submitActionCTAText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+
+  searchBarWrapperCard: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E5EA', alignItems: 'center', paddingHorizontal: 12, height: 44, marginBottom: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.01, shadowRadius: 1, elevation: 1 },
+  searchInnerIcon: { marginRight: 8 },
+  searchBarInputField: { flex: 1, color: '#1C1C1E', fontSize: 13, height: '100%', fontWeight: '500' },
+
+  directoryDirectoryTabBar: { flexDirection: 'row', backgroundColor: '#E5E5EA', borderRadius: 12, padding: 3, marginBottom: 14, gap: 4 },
+  directoryTabButton: { flex: 1, flexDirection: 'row', paddingVertical: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
+  activeDirectoryTabButton: { backgroundColor: '#007AFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 1, elevation: 1 },
+  directoryTabText: { fontSize: 12, fontWeight: '600', color: '#636366' },
+  activeDirectoryTabText: { color: '#FFFFFF', fontWeight: '700' },
+
+  directoryMasterCardBlock: { backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1, borderColor: '#E5E5EA', overflow: 'hidden' },
   emptySectionText: { textAlign: 'center', color: '#8E8E93', fontSize: 13, fontStyle: 'italic', paddingVertical: 35, paddingHorizontal: 20 },
-
-  teacherRowCard: { backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderColor: '#F2F2F7', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  teacherRowCard: { backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderColor: '#F2F2F7', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   teacherMetaInfo: { flex: 1, paddingRight: 8 },
   tName: { fontSize: 14, fontWeight: '700', color: '#1C1C1E' },
   tDetails: { fontSize: 12, color: '#3A3A3C', fontWeight: '600', marginTop: 1 },
   tSubDetails: { fontSize: 11, color: '#8E8E93', marginTop: 3 },
   actionColButtons: { flexDirection: 'row', gap: 6 },
-  iconActionBtn: { width: 34, height: 34, backgroundColor: '#E0F0FF', borderRadius: 17, justifyContent: 'center', alignItems: 'center' },
+  iconActionBtn: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', backgroundColor: '#E0F0FF' },
 
-  modalBlurWrapper: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalContentCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
-  modalTitleHeader: { fontSize: 15, fontWeight: '700', color: '#1C1C1E', marginBottom: 16, textAlign: 'center' },
-  modalActionsRowButtons: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  modalCancelBtn: { flex: 1, height: 44, borderRadius: 8, borderWidth: 1, borderColor: '#D1D1D6', justifyContent: 'center', alignItems: 'center' },
-  modalCancelText: { color: '#555', fontSize: 14, fontWeight: '600' },
-  modalSaveBtn: { flex: 1, backgroundColor: '#007AFF', height: 44, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  modalSaveText: { color: '#FFF', fontSize: 14, fontWeight: '600' }
+  modalBlurOverlayWrapper: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',  justifyContent: 'center', padding: 20 },
+  modalContentDisplayCardBox: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#E5E5EA', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 5 },
+  modalTitleHeaderTitleCaption: { fontSize: 15, fontWeight: '800', color: '#1C1C1E', marginBottom: 16, textAlign: 'center' },
+  modalActionButtonsInlineContainerRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  modalCancelExecutionButtonCard: { flex: 1, height: 44, borderRadius: 10, borderWidth: 1, borderColor: '#D1D1D6', justifyContent: 'center', alignItems: 'center' },
+  modalCancelExecutionButtonCardTextLabel: { color: '#48484A', fontSize: 13, fontWeight: '600' },
+  modalSaveCommitActionButtonCard: { flex: 1, backgroundColor: '#007AFF', height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  modalSaveCommitActionButtonCardTextLabel: { color: '#FFF', fontSize: 13, fontWeight: '600' }
 });

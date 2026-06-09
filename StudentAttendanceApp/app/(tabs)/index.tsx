@@ -24,14 +24,54 @@ export default function HomeScreen() {
     }, [])
   );
 
+  // 🔒 ONLY CHANGE: Premium visual restyling of the unauthenticated terminal view
   if (!currentTeacher) {
     return (
-      <View style={styles.fallbackContainer}>
-        <Text style={styles.fallbackText}>Session Expired. Please Log In.</Text>
-        <TouchableOpacity style={styles.loginBtn} onPress={() => router.replace('/login')}>
-          <Text style={styles.loginBtnText}>Go to Login</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        {/* Minimal Subtle Header Ribbon */}
+        <View style={styles.fallbackHeaderNavbar}>
+          <Text style={styles.fallbackHeaderMainTitle}>Attendance App</Text>
+          <View style={styles.livePulseIndicator}>
+            <View style={styles.pulseDotCore} />
+          </View>
+        </View>
+
+        {/* High-End Card Layout Panel */}
+        <View style={styles.fallbackCenterContainer}>
+          <View style={styles.illustrationCardContainer}>
+            
+            {/* Security Shield Clock Icon Arrangement */}
+            <View style={styles.shieldDecorationCircle}>
+              <Ionicons name="time-outline" size={38} color="#FF9500" />
+              <View style={styles.miniAlertBadge}>
+                <Ionicons name="alert" size={10} color="#FFF" />
+              </View>
+            </View>
+
+            {/* Structured Text Content */}
+            <Text style={styles.mainStateHeadline}>Session Expired</Text>
+            <Text style={styles.stateParagraphDescription}>
+              For your account security, your connection timed out due to inactivity. Please log back in to manage active datasets.
+            </Text>
+
+            {/* CTA Dynamic Button Trigger */}
+            <TouchableOpacity 
+              style={styles.actionReturnButton}
+              onPress={() => router.replace('/login')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="log-in-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.actionReturnButtonText}>Go to Login</Text>
+            </TouchableOpacity>
+
+          </View>
+        </View>
+
+        {/* Security Stamp Description */}
+        <Text style={styles.footerSecurityBadgeText}>
+          🔒 Secure Gateway Authentication System
+        </Text>
+      </SafeAreaView>
     );
   }
 
@@ -185,9 +225,18 @@ const styles = StyleSheet.create({
   recentActivityBox: { backgroundColor: '#FFF', padding: 14, borderRadius: 14, flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1, borderColor: '#E5E5EA', marginTop: 6 },
   activityText: { color: '#666', fontSize: 12, fontWeight: '500', flex: 1, lineHeight: 16 },
 
-  // System Fallback Layout Styles
-  fallbackContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F2F2F7', padding: 20 },
-  fallbackText: { marginBottom: 20, fontSize: 16, fontWeight: '600', color: '#8E8E93' },
-  loginBtn: { backgroundColor: '#007AFF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
-  loginBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 15 }
+  // 🔒 MODERN SECURITY GATEKEEPER FALLBACK DESIGN STYLES
+  fallbackHeaderNavbar: { height: 60, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, borderBottomWidth: 1, borderColor: '#E5E5EA' },
+  fallbackHeaderMainTitle: { fontSize: 20, fontWeight: '800', color: '#1C1C1E', letterSpacing: -0.5 },
+  livePulseIndicator: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFE5E5', justifyContent: 'center', alignItems: 'center' },
+  pulseDotCore: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30' },
+  fallbackCenterContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+  illustrationCardContainer: { backgroundColor: '#FFFFFF', width: '100%', borderRadius: 24, paddingVertical: 36, paddingHorizontal: 20, alignItems: 'center', borderWidth: 1, borderColor: '#E5E5EA', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.02, shadowRadius: 6, elevation: 2 },
+  shieldDecorationCircle: { width: 76, height: 76, borderRadius: 38, backgroundColor: '#FFF9F0', justifyContent: 'center', alignItems: 'center', marginBottom: 18, borderWidth: 1, borderColor: '#FFEAA7' },
+  miniAlertBadge: { position: 'absolute', top: 2, right: 2, width: 18, height: 18, borderRadius: 9, backgroundColor: '#FF9500', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFFFFF' },
+  mainStateHeadline: { fontSize: 20, fontWeight: '800', color: '#1C1C1E', letterSpacing: -0.3, marginBottom: 8 },
+  stateParagraphDescription: { fontSize: 13, color: '#8E8E93', fontWeight: '500', textAlign: 'center', lineHeight: 18, paddingHorizontal: 10, marginBottom: 24 },
+  actionReturnButton: { backgroundColor: '#007AFF', flexDirection: 'row', height: 46, width: '100%', borderRadius: 12, justifyContent: 'center', alignItems: 'center', shadowColor: '#007AFF', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 2 },
+  actionReturnButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700', letterSpacing: -0.1 },
+  footerSecurityBadgeText: { textAlign: 'center', color: '#C7C7CC', fontSize: 11, fontWeight: '600', marginBottom: 16, letterSpacing: 0.2 }
 });

@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity } from 'react-native';
 import { useAppGlobalState } from '../AppContext';
+// ✅ Added the DatePicker import
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 export default function HistoryScreen() {
   const { historyLogs, currentTeacher } = useAppGlobalState();
   
   // Track expanded log card IDs in local screen memory
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+
+  // ✅ Added Date Filter States
+  const [filterDate, setFilterDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
 
   if (!currentTeacher) return <View style={styles.center}><Text>Access Denied.</Text></View>;
 
@@ -16,11 +22,65 @@ export default function HistoryScreen() {
     setExpandedLogId(prevId => (prevId === id ? null : id));
   };
 
+  // ✅ Handle Date Picked
+  const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
+    setShowDatePicker(false);
+    if (date) {
+      setFilterDate(date);
+    }
+  };
+
+  // ✅ Filter logs dynamically to only display records matching the selected date
+  const filteredHistoryLogs = useMemo(() => {
+    if (!filterDate) return historyLogs;
+
+    const targetDateStr = filterDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
+    const targetClean = targetDateStr.replace(/\s+/g, '').toLowerCase();
+
+    return historyLogs.filter((log) => {
+      if (!log.dateString) return false;
+      const logClean = log.dateString.replace(/\s+/g, '').toLowerCase();
+      return logClean === targetClean;
+    });
+  }, [historyLogs, filterDate]);
+
   return (
     <View style={styles.container}>
+      
+      {/* ✅ Date Filtering Header Wrapper (Uses your existing styles) */}
+      <View style={[styles.cardHeader, { borderBottomWidth: 0, marginBottom: 4 }]}>
+        <TouchableOpacity 
+          style={styles.classBadge} 
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Text style={{ color: '#007AFF', fontWeight: '700' }}>
+            📅 {filterDate ? filterDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Search by Date..."}
+          </Text>
+        </TouchableOpacity>
+
+        {filterDate && (
+          <TouchableOpacity 
+            style={[styles.classBadge, { backgroundColor: '#FFE5E5' }]} 
+            onPress={() => setFilterDate(null)}
+          >
+            <Text style={{ color: '#FF3B30', fontWeight: '700' }}>Clear Search</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {showDatePicker && (
+        <DateTimePicker 
+          value={filterDate || new Date()} 
+          mode="date" 
+          display="default" 
+          maximumDate={new Date()} 
+          onChange={onDateChange} 
+        />
+      )}
+
       <FlatList
-        // The backend already filters these logs for the current teacher!
-        data={historyLogs} 
+        // ✅ Feeds the dynamically filtered array into your identical layout view
+        data={filteredHistoryLogs} 
         keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={

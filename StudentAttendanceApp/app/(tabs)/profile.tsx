@@ -4,9 +4,11 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useAppGlobalState, API_BASE_URL } from '../AppContext';
 import { Ionicons } from '@expo/vector-icons';
 import * as XLSX from 'xlsx';
+// ✅ IMPORT THE ROUTER CONTEXT FOR CLEAN IMPERATIVE JUMPS
+import { router } from 'expo-router';
 
 export default function StudentImportScreen() {
-  const { currentTeacher } = useAppGlobalState();
+  const { currentTeacher, setCurrentTeacher } = useAppGlobalState();
   
   // Section States
   const [newSectionInput, setNewSectionInput] = useState('');
@@ -17,6 +19,32 @@ export default function StudentImportScreen() {
   const [fileName, setFileName] = useState('');
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+
+  // ✅ SAFELY REDIRECTS FIRST, THEN CLEARS CONTEXT
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to log out of your session?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Log Out", 
+          style: "destructive", 
+          onPress: () => {
+            // 1. Kick the user out to the login screen first while the tabs are still mounted
+            router.replace('/login');
+            
+            // 2. Clear state inside the next micro-task loop to prevent Fabric renderer crashes
+            setTimeout(() => {
+              if (typeof setCurrentTeacher === 'function') {
+                setCurrentTeacher(null);
+              }
+            }, 100);
+          } 
+        }
+      ]
+    );
+  };
 
   // MANUALLY ADD CUSTOM SECTIONS TO THE INPUT OPTIONS LIST
   const handleAddCustomSection = () => {
@@ -109,9 +137,6 @@ export default function StudentImportScreen() {
     try {
       const standardizedSection = selectedSection.toString().trim().toUpperCase().replace(/\s+/g, '');
 
-      // ✅ FRONTEND DUPLICATE BYPASS FIX:
-      // Attaches the target section to the end of the roll number layout (e.g. "101" -> "101-ME").
-      // This forces the backend global filter to treat them as brand new unique entries!
       const formattedStudents = parsedData.map((row: any) => {
         const rawName = row.Name || row.name || row["Student Name"] || row["Name "];
         const rawRoll = row.RollNumber || row.rollNumber || row["Roll Number"] || row.Roll_Number;
@@ -165,6 +190,17 @@ export default function StudentImportScreen() {
     }
   };
 
+  // Safe Fallback
+  if (!currentTeacher) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.center}>
+          <Text style={{ fontWeight: '600', color: '#8E8E93' }}>Signed out successfully.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -175,9 +211,17 @@ export default function StudentImportScreen() {
             <Ionicons name="person" size={32} color="#007AFF" />
           </View>
           <View style={styles.profileMetaInfo}>
-            <Text style={styles.teacherNameText}>
-              {currentTeacher?.name || "Instructor Account"}
-            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.teacherNameText}>
+                {currentTeacher?.name || "Instructor Account"}
+              </Text>
+              
+              {/* LOGOUT TOUCHABLE ICON */}
+              <TouchableOpacity onPress={handleLogout} activeOpacity={0.6} style={{ padding: 4 }}>
+                <Ionicons name="log-out-outline" size={22} color="#FF3B30" />
+              </TouchableOpacity>
+            </View>
+            
             <Text style={styles.teacherRankText}>
               {currentTeacher?.designation || "Academic Faculty Rank"}
             </Text>
@@ -281,6 +325,7 @@ export default function StudentImportScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F2F2F7' },
   container: { padding: 20 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   profileHeaderCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 18, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#E5E5EA', marginBottom: 20 },
   avatarCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#E0F0FF', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   profileMetaInfo: { flex: 1 },

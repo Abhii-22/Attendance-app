@@ -33,7 +33,7 @@ export default function LoginScreen() {
       setTimeout(() => {
         setIsLoading(false);
         // Secure hardcoded root administrative credentials
-        if (cleanEmail === 'admin@university.edu' && cleanPin === '0000') {
+        if (cleanEmail === 'pradeep@medini.in' && cleanPin === '2026') {
           Alert.alert("Access Granted", "Administrative credentials verified successfully!");
           router.replace('/admin');
         } else {
@@ -133,14 +133,7 @@ export default function LoginScreen() {
       </TouchableOpacity>
 
       {/* HELP DYNAMIC ACCOUNT INFOTIP CONTAINER */}
-      <View style={styles.hintBox}>
-        <Text style={styles.hintTitle}>Available Test Access:</Text>
-        {loginMode === 'teacher' ? (
-          <Text style={styles.hintText}>• teacher1@university.edu (Pin: 1111)</Text>
-        ) : (
-          <Text style={styles.hintText}>• admin@university.edu (Pin: 0000)</Text>
-        )}
-      </View>
+      
     </View>
   );
 }

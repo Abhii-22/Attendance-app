@@ -35,18 +35,34 @@ export default function HomeScreen() {
           <View style={styles.greetingTextContainer}>
             <Text style={styles.greetingSubtitle}>{greeting},</Text>
             <Text style={styles.greetingTitle}>{currentTeacher.name}</Text>
-            <Text style={styles.departmentBadge}>{currentTeacher.department}</Text>
+            <View style={styles.departmentBadge}>
+              <Text style={styles.departmentBadgeText}>{currentTeacher.department}</Text>
+            </View>
           </View>
           <TouchableOpacity style={styles.avatarCircle} onPress={() => router.push('/(tabs)/profile')}>
-            <Text style={styles.avatarText}>{currentTeacher.name.split(' ').pop()?.substring(0, 2).toUpperCase()}</Text>
+            <Text style={styles.avatarText}>
+              {currentTeacher.name.split(' ').pop()?.substring(0, 2).toUpperCase()}
+            </Text>
           </TouchableOpacity>
         </View>
 
         {/* METRICS */}
         <View style={styles.statsContainer}>
-          <View style={[styles.statCard, { backgroundColor: '#E0F0FF' }]}><Ionicons name="people" size={24} color="#007AFF" /><Text style={styles.statNumber}>{totalStudents}</Text><Text style={styles.statLabel}>Students</Text></View>
-          <View style={[styles.statCard, { backgroundColor: '#E4F9E9' }]}><Ionicons name="library" size={24} color="#34C759" /><Text style={styles.statNumber}>{totalClasses}</Text><Text style={styles.statLabel}>Classes</Text></View>
-          <View style={[styles.statCard, { backgroundColor: '#F4E8FF' }]}><Ionicons name="checkmark-done-circle" size={24} color="#AF52DE" /><Text style={styles.statNumber}>{myRecentLogs}</Text><Text style={styles.statLabel}>Logs</Text></View>
+          <View style={[styles.statCard, { backgroundColor: '#E0F0FF', borderColor: '#B3D7FF' }]}>
+            <Ionicons name="people" size={22} color="#007AFF" />
+            <Text style={[styles.statNumber, { color: '#0056B3' }]}>{totalStudents}</Text>
+            <Text style={styles.statLabel}>Students</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: '#E4F9E9', borderColor: '#B9F0C8' }]}>
+            <Ionicons name="library" size={22} color="#34C759" />
+            <Text style={[styles.statNumber, { color: '#1E6B30' }]}>{totalClasses}</Text>
+            <Text style={styles.statLabel}>Classes</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: '#F4E8FF', borderColor: '#E1C4FF' }]}>
+            <Ionicons name="checkmark-done-circle" size={22} color="#AF52DE" />
+            <Text style={[styles.statNumber, { color: '#6A1B9A' }]}>{myRecentLogs}</Text>
+            <Text style={styles.statLabel}>Logs</Text>
+          </View>
         </View>
 
         {/* UPDATED QUICK ACTIONS GRID */}
@@ -54,30 +70,31 @@ export default function HomeScreen() {
         <View style={styles.actionGrid}>
           {/* Primary Action */}
           <TouchableOpacity style={[styles.actionButton, styles.primaryAction]} onPress={() => router.push('/(tabs)/attendance')}>
-            <Ionicons name="calendar" size={28} color="#FFFFFF" />
+            <Ionicons name="calendar" size={32} color="#FFFFFF" />
             <Text style={styles.actionTextPrimary}>Take Attendance</Text>
           </TouchableOpacity>
 
           {/* Secondary Actions Column */}
           <View style={styles.secondaryActionsColumn}>
             <TouchableOpacity style={styles.secondaryAction} onPress={() => router.push('/(tabs)/history')}>
-              <Ionicons name="time" size={22} color="#007AFF" />
+              <Ionicons name="time" size={20} color="#007AFF" />
               <Text style={styles.secondaryActionText}>History</Text>
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.secondaryAction} onPress={() => router.push('/(tabs)/analytics')}>
-              <Ionicons name="pie-chart" size={22} color="#FF9500" />
+              <Ionicons name="pie-chart" size={20} color="#FF9500" />
               <Text style={styles.secondaryActionText}>Analytics</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.secondaryAction} onPress={() => router.push('/(tabs)/profile')}>
-              <Ionicons name="person-add" size={22} color="#AF52DE" />
+              <Ionicons name="person-add" size={20} color="#AF52DE" />
               <Text style={styles.secondaryActionText}>Students</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.recentActivityBox}>
+          <Ionicons name="information-circle-outline" size={18} color="#8E8E93" style={{ marginRight: 8, marginTop: 1 }} />
           <Text style={styles.activityText}>All systems operational. Ensure all logs are submitted daily.</Text>
         </View>
 
@@ -89,29 +106,30 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F2F2F7' },
   container: { padding: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
-  greetingTextContainer: { flex: 1 }, // Ensure this exists!
-  greetingTitle: { fontSize: 26, fontWeight: '800' },
-  greetingSubtitle: { fontSize: 14, color: '#8E8E93', textTransform: 'uppercase' },
-  departmentBadge: { color: '#007AFF', backgroundColor: '#E0F0FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, fontSize: 12, marginTop: 5, alignSelf: 'flex-start' },
-  avatarCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#1C1C1E', justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#FFF', fontWeight: 'bold' },
-  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
-  statCard: { flex: 1, padding: 15, borderRadius: 16, marginHorizontal: 4, alignItems: 'center' },
-  statNumber: { fontSize: 20, fontWeight: '800', marginTop: 10 },
-  statLabel: { fontSize: 11, color: '#666' },
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 15 },
-  actionGrid: { flexDirection: 'row', height: 200, marginBottom: 20 },
-  actionButton: { borderRadius: 20, padding: 20, justifyContent: 'space-between' }, // Ensure this exists!
-  primaryAction: { flex: 1, backgroundColor: '#007AFF', borderRadius: 20, padding: 20, justifyContent: 'flex-end', marginRight: 15 },
-  actionTextPrimary: { color: '#FFF', fontSize: 20, fontWeight: 'bold', marginTop: 10 },
-  secondaryActionsColumn: { flex: 1, gap: 10 },
-  secondaryAction: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, gap: 10 },
-  secondaryActionText: { fontWeight: '600', fontSize: 14 },
-  recentActivityBox: { backgroundColor: '#FFF', padding: 20, borderRadius: 16 },
-  activityText: { color: '#8E8E93', fontSize: 13 },
-  fallbackContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  fallbackText: { marginBottom: 20 },
-  loginBtn: { backgroundColor: '#007AFF', padding: 15, borderRadius: 10 },
-  loginBtnText: { color: '#FFF', fontWeight: 'bold' }
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, marginTop: 10 },
+  greetingTextContainer: { flex: 1 },
+  greetingTitle: { fontSize: 28, fontWeight: '800', color: '#1C1C1E', letterSpacing: -0.5, marginTop: 2 },
+  greetingSubtitle: { fontSize: 13, color: '#8E8E93', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  departmentBadge: { backgroundColor: '#E0F0FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, marginTop: 6, alignSelf: 'flex-start' },
+  departmentBadgeText: { color: '#007AFF', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  avatarCircle: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#1C1C1E', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3 },
+  avatarText: { color: '#FFF', fontWeight: '800', fontSize: 14, letterSpacing: 0.5 },
+  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 28 },
+  statCard: { flex: 1, padding: 16, borderRadius: 16, marginHorizontal: 4, alignItems: 'center', borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 2, elevation: 1 },
+  statNumber: { fontSize: 22, fontWeight: '800', marginTop: 8 },
+  statLabel: { fontSize: 12, color: '#666', fontWeight: '600', marginTop: 2 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1C1C1E', marginBottom: 14, letterSpacing: -0.2 },
+  actionGrid: { flexDirection: 'row', height: 190, marginBottom: 20 },
+  actionButton: { borderRadius: 20, padding: 20, justifyContent: 'space-between' },
+  primaryAction: { flex: 1, backgroundColor: '#007AFF', borderRadius: 20, padding: 20, justifyContent: 'flex-end', marginRight: 12, shadowColor: '#007AFF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 4 },
+  actionTextPrimary: { color: '#FFF', fontSize: 19, fontWeight: '800', marginTop: 12, lineHeight: 24, letterSpacing: -0.3 },
+  secondaryActionsColumn: { flex: 1, gap: 8 },
+  secondaryAction: { flex: 1, backgroundColor: '#FFF', borderRadius: 14, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, borderWidth: 1, borderColor: '#E5E5EA', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 2, elevation: 1 },
+  secondaryActionText: { fontWeight: '700', fontSize: 14, color: '#1C1C1E', marginLeft: 2 },
+  recentActivityBox: { backgroundColor: '#FFF', padding: 16, borderRadius: 16, flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1, borderColor: '#E5E5EA' },
+  activityText: { color: '#666', fontSize: 13, fontWeight: '500', flex: 1, lineHeight: 18 },
+  fallbackContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F2F2F7', padding: 20 },
+  fallbackText: { marginBottom: 20, fontSize: 16, fontWeight: '600', color: '#8E8E93' },
+  loginBtn: { backgroundColor: '#007AFF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
+  loginBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 15 }
 });

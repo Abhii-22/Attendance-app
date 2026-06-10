@@ -2,7 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { Alert } from 'react-native';
 
 // ✅ Matches your fixed computer Wi-Fi IP address
-export const API_BASE_URL = 'http://192.168.1.9:5000/api';
+export const API_BASE_URL = 'http://192.168.1.10:5000/api';
 
 export interface Student {
   id?: string;

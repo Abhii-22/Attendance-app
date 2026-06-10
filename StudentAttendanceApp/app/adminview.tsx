@@ -93,7 +93,7 @@ export default function AdminViewDashboard() {
     setExpandedLogId(prev => (prev === id ? null : id));
   };
 
-  // ✅ 1. FILTERED & CHRONOLOGICAL LOG GROUPING (ATTENDANCE)
+  // ✅ FIXED CHRONOLOGICAL REVERSE ORDER SORT ENGINE
   const filteredGroupedHistoryLogs = useMemo(() => {
     const groups: Record<string, any[]> = {};
     if (Array.isArray(globalLogs)) {
@@ -105,17 +105,29 @@ export default function AdminViewDashboard() {
         (log.dateString || '').toLowerCase().includes(query)
       );
 
-      const sortedLogs = [...filtered].sort((a, b) => (b.dateString || '').localeCompare(a.dateString || ''));
+      // Parse dates safely to order them chronologically from newest down to oldest
+      const sortedLogs = [...filtered].sort((a, b) => {
+        const dateA = a.dateString ? new Date(a.dateString.split('-').reverse().join('-')).getTime() : 0;
+        const dateB = b.dateString ? new Date(b.dateString.split('-').reverse().join('-')).getTime() : 0;
+        return dateB - dateA; 
+      });
+      
       sortedLogs.forEach(log => {
         const dateKey = log.dateString || 'Unknown Date';
         if (!groups[dateKey]) groups[dateKey] = [];
         groups[dateKey].push(log);
       });
     }
-    return Object.entries(groups);
+
+    // Explicitly sort entries array based on date keys before delivering output variables
+    return Object.entries(groups).sort((a, b) => {
+      const timeA = new Date(a[0].split('-').reverse().join('-')).getTime();
+      const timeB = new Date(b[0].split('-').reverse().join('-')).getTime();
+      return timeB - timeA;
+    });
   }, [globalLogs, attendanceQuery]);
 
-  // ✅ 2. FILTERED & SECTION-WISE STUDENT ROSTER GROUPING (STUDENTS)
+  // FILTERED & SECTION-WISE STUDENT ROSTER GROUPING
   const filteredGroupedStudentsBySection = useMemo(() => {
     const groups: Record<string, any[]> = {};
     if (Array.isArray(globalStudents)) {
@@ -136,7 +148,7 @@ export default function AdminViewDashboard() {
     return Object.entries(groups);
   }, [globalStudents, studentsQuery]);
 
-  // ✅ 3. FILTERED FACULTY MASTER DIRECTORY (FACULTY)
+  // FILTERED FACULTY MASTER DIRECTORY
   const filteredFacultyList = useMemo(() => {
     if (!Array.isArray(globalTeachers)) return [];
     const query = facultyQuery.toLowerCase().trim();
@@ -214,7 +226,7 @@ export default function AdminViewDashboard() {
         </View>
       </View>
 
-      {/* 🚀 RENAMED SEGMENTED TAB NAVIGATION */}
+      {/* SEGMENTED TAB NAVIGATION */}
       <View style={styles.tabBar}>
         <TouchableOpacity style={[styles.tabButton, activeTab === 'attendance' && styles.activeTabButton]} onPress={() => setActiveTab('attendance')}>
           <Ionicons name="calendar-sharp" size={14} color={activeTab === 'attendance' ? '#FFF' : '#8E8E93'} style={{ marginRight: 4 }} />
@@ -240,7 +252,7 @@ export default function AdminViewDashboard() {
       ) : (
         <View style={{ flex: 1 }}>
           
-          {/* 📂 TAB 1: ATTENDANCE HISTORY VIEW WITH REAL-TIME FILTER BAR */}
+          {/* 📂 TAB 1: ATTENDANCE HISTORY VIEW WITH CHRONOLOGICAL OVERRIDES */}
           {activeTab === 'attendance' && (
             <View style={{ flex: 1 }}>
               <View style={styles.searchBarContainer}>
@@ -303,7 +315,7 @@ export default function AdminViewDashboard() {
             </View>
           )}
 
-          {/* 📂 TAB 2: STUDENTS VIEW GROUPED BY SECTION WITH REAL-TIME FILTER BAR */}
+          {/* 📂 TAB 2: STUDENTS VIEW */}
           {activeTab === 'students' && (
             <View style={{ flex: 1 }}>
               <View style={styles.searchBarContainer}>
@@ -350,7 +362,7 @@ export default function AdminViewDashboard() {
             </View>
           )}
 
-          {/* 📂 TAB 3: FACULTY DEPLOYMENT TRACKING WITH REAL-TIME FILTER BAR */}
+          {/* 📂 TAB 3: FACULTY DEPLOYMENT TRACKING MAP */}
           {activeTab === 'faculty' && (
             <View style={{ flex: 1 }}>
               <View style={styles.searchBarContainer}>
@@ -377,7 +389,7 @@ export default function AdminViewDashboard() {
                       <Ionicons name="person-circle-outline" size={26} color="#007AFF" style={{ marginRight: 8 }} />
                       <View>
                         <Text style={styles.teacherName}>{item.name}</Text>
-                        <Text style={styles.teacherIdText}>ID: {item.employeeId || 'N/A'} • {item.designation || 'Faculty'}</Text>
+                        <Text style={styles.teacherIdText}>ID: {item.employeeId || 'N/A'} • {item.designation ? item.designation.replace(/\u200B\(adminview\)/g, '').trim() : 'Faculty'}</Text>
                       </View>
                     </View>
                     <View style={styles.teacherMetaRow}>
@@ -404,7 +416,6 @@ const styles = StyleSheet.create({
   listContainer: { padding: 16, paddingBottom: 40 },
   emptyText: { textAlign: 'center', color: '#8E8E93', marginTop: 40, fontStyle: 'italic', fontSize: 14 },
 
-  // Profile Hero Layout
   profileHeroSection: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 20, borderRadius: 20, marginHorizontal: 16, marginTop: 16, marginBottom: 14, borderWidth: 1, borderColor: '#E5E5EA', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
   heroLeft: { flex: 1 },
   greetingSubtitle: { fontSize: 11, color: '#8E8E93', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
@@ -413,7 +424,6 @@ const styles = StyleSheet.create({
   departmentBadgeText: { color: '#FF9500', fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
   avatarCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center', shadowColor: '#FF3B30', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 2 },
 
-  // Metric Snapshot Card setup
   metricsWrapperCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#E5E5EA', marginBottom: 16, marginHorizontal: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 3, elevation: 1 },
   cardHeaderLabel: { fontSize: 10, color: '#8E8E93', fontWeight: '700', letterSpacing: 1, marginBottom: 14, textAlign: 'center' },
   statsContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -423,19 +433,16 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 11, color: '#8E8E93', fontWeight: '600', marginTop: 2 },
   dividerLine: { width: 1, height: 36, backgroundColor: '#E5E5EA' },
 
-  // Tab Selection Strip Layout
   tabBar: { flexDirection: 'row', backgroundColor: '#E5E5EA', borderRadius: 12, padding: 3, marginHorizontal: 16, marginBottom: 14, gap: 4 },
   tabButton: { flex: 1, flexDirection: 'row', paddingVertical: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
   activeTabButton: { backgroundColor: '#007AFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 1 },
   tabButtonText: { fontSize: 12, fontWeight: '600', color: '#636366' },
   activeTabButtonText: { color: '#FFFFFF', fontWeight: '700' },
 
-  // 🔍 Dashboard Search Input Setup
   searchBarContainer: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E5EA', alignItems: 'center', paddingHorizontal: 12, height: 44, marginHorizontal: 16, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.01, shadowRadius: 1, elevation: 1 },
   searchIcon: { marginRight: 8 },
   searchBarInput: { flex: 1, color: '#1C1C1E', fontSize: 13, height: '100%', fontWeight: '500' },
 
-  // Attendance Tab Structural styles
   dateBlock: { marginBottom: 16 },
   dateBlockHeader: { fontSize: 13, fontWeight: '800', color: '#48484A', marginBottom: 10, backgroundColor: '#E5E5EA', padding: 8, borderRadius: 8, overflow: 'hidden', letterSpacing: 0.2 },
   dataCard: { backgroundColor: '#FFFFFF', padding: 14, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: '#E5E5EA' },
@@ -458,7 +465,6 @@ const styles = StyleSheet.create({
   textPresent: { color: '#34C759' },
   textAbsent: { color: '#FF3B30' },
 
-  // Students Tab Structural styles
   sectionContainerBlock: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#E5E5EA' },
   sectionHeaderRibbon: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: '#F2F2F7', paddingBottom: 8, marginBottom: 10 },
   sectionHeaderRibbonText: { fontSize: 14, fontWeight: '800', color: '#1C1C1E', marginLeft: 6, flex: 1 },
@@ -467,7 +473,6 @@ const styles = StyleSheet.create({
   studentItemName: { fontSize: 13, fontWeight: '600', color: '#1C1C1E', flex: 1 },
   studentItemRoll: { fontSize: 12, color: '#8E8E93', fontWeight: '500' },
 
-  // Faculty Tab Structural styles
   teacherCard: { backgroundColor: '#FFFFFF', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: '#E5E5EA', marginBottom: 10 },
   teacherHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   teacherName: { fontSize: 15, fontWeight: '700', color: '#1C1C1E' },
